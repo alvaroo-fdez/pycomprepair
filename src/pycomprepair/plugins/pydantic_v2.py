@@ -21,6 +21,7 @@ the CLI.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -64,6 +65,66 @@ _VALIDATOR_RENAMES: dict[str, tuple[str, str]] = {
 }
 
 
+# Mapping of Pydantic v1 ``class Config`` keys to their v2 ``ConfigDict``
+# equivalents. ``None`` means the key was removed in v2 and must be handled
+# manually — when present we abort the automatic transformation.
+_CONFIG_KEY_RENAMES: dict[str, str | None] = {
+    # Renamed keys.
+    "allow_population_by_field_name": "populate_by_name",
+    "anystr_strip_whitespace": "str_strip_whitespace",
+    "anystr_lower": "str_to_lower",
+    "anystr_upper": "str_to_upper",
+    "min_anystr_length": "str_min_length",
+    "max_anystr_length": "str_max_length",
+    "orm_mode": "from_attributes",
+    "schema_extra": "json_schema_extra",
+    "keep_untouched": "ignored_types",
+    "allow_mutation": "frozen",  # value must also be negated (see _CONFIG_VALUE_TRANSFORM)
+    "use_enum_values": "use_enum_values",
+    "validate_all": "validate_default",
+    "validate_assignment": "validate_assignment",
+    "arbitrary_types_allowed": "arbitrary_types_allowed",
+    "str_to_lower": "str_to_lower",
+    "str_to_upper": "str_to_upper",
+    "frozen": "frozen",
+    "populate_by_name": "populate_by_name",
+    "from_attributes": "from_attributes",
+    "extra": "extra",
+    "title": "title",
+    "alias_generator": "alias_generator",
+    # Removed keys (must keep the warning, no auto-fix).
+    "error_msg_templates": None,
+    "fields": None,
+    "getter_dict": None,
+    "json_loads": None,
+    "json_dumps": None,
+    "json_encoders": None,
+    "underscore_attrs_are_private": None,
+    "smart_union": None,
+    "copy_on_model_validation": None,
+}
+
+# Keys whose *value* requires a transformation when migrated. Each callable
+# receives the v1 :class:`cst.BaseExpression` and returns the v2 expression,
+# or ``None`` if the value cannot be safely converted statically.
+_ValueTransform = Callable[[cst.BaseExpression], "cst.BaseExpression | None"]
+
+
+def _negate_bool(value: cst.BaseExpression) -> cst.BaseExpression | None:
+    """Flip ``True``/``False`` literals; abort on anything else."""
+    if isinstance(value, cst.Name):
+        if value.value == "True":
+            return cst.Name("False")
+        if value.value == "False":
+            return cst.Name("True")
+    return None
+
+
+_CONFIG_VALUE_TRANSFORM: dict[str, _ValueTransform] = {
+    "allow_mutation": _negate_bool,
+}
+
+
 @dataclass
 class _PydanticPlugin:
     """Pydantic v1 -> v2 migration plugin."""
@@ -93,6 +154,8 @@ class _PydanticPlugin:
             new_module = _ensure_pydantic_import(new_module, "field_validator")
         if transformer.needs_model_validator_import:
             new_module = _ensure_pydantic_import(new_module, "model_validator")
+        if transformer.needs_config_dict_import:
+            new_module = _ensure_pydantic_import(new_module, "ConfigDict")
         return new_module
 
 
@@ -164,7 +227,9 @@ class _PydanticScanVisitor(cst.CSTVisitor):
         )
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        # Detect an inner ``class Config:`` (no auto-fix yet — emit warning).
+        # Detect an inner ``class Config``. When the body is convertible
+        # (only literal assignments using known keys), advertise a safe fix;
+        # otherwise emit the warning without an automated fix.
         for stmt in node.body.body:
             if (
                 isinstance(stmt, cst.ClassDef)
@@ -172,6 +237,17 @@ class _PydanticScanVisitor(cst.CSTVisitor):
                 and stmt.name.value == "Config"
             ):
                 line, col = _pos(self._positions, stmt)
+                plan = _plan_config_migration(stmt)
+                fix: Fix | None = None
+                if plan.convertible:
+                    fix = Fix(
+                        description=(
+                            "Rewrite inner `class Config` as "
+                            "`model_config = ConfigDict(...)`"
+                        ),
+                        confidence=0.9,
+                        safe=True,
+                    )
                 self.issues.append(
                     Issue(
                         plugin=PLUGIN_NAME,
@@ -184,7 +260,7 @@ class _PydanticScanVisitor(cst.CSTVisitor):
                         line=line,
                         column=col,
                         severity=Severity.WARNING,
-                        fix=None,  # safe automated transform requires more context
+                        fix=fix,
                         context={"class": node.name.value},
                     )
                 )
@@ -197,6 +273,7 @@ class _PydanticTransformer(cst.CSTTransformer):
         super().__init__()
         self.needs_field_validator_import = False
         self.needs_model_validator_import = False
+        self.needs_config_dict_import = False
 
     def leave_Call(self, original_node: cst.Call, updated_node: cst.Call) -> cst.Call:
         func = updated_node.func
@@ -226,11 +303,173 @@ class _PydanticTransformer(cst.CSTTransformer):
             return updated_node.with_changes(decorator=cst.Name(new_name))
         return updated_node
 
+    def leave_ClassDef(
+        self, original_node: cst.ClassDef, updated_node: cst.ClassDef
+    ) -> cst.ClassDef:
+        """Rewrite an inner ``class Config`` into ``model_config = ConfigDict(...)``.
+
+        Only the inner ``Config`` class is touched; siblings and the parent
+        class body are preserved. When the migration is not safe (unknown
+        keys, non-literal values, ``fields`` dict, …) we leave the class
+        untouched and rely on the scanner's warning.
+        """
+        new_body_items: list[cst.BaseStatement] = []
+        changed = False
+        for stmt in updated_node.body.body:
+            replacement = self._maybe_rewrite_config_class(stmt)
+            if replacement is None:
+                new_body_items.append(stmt)
+            else:
+                new_body_items.append(replacement)
+                changed = True
+
+        if not changed:
+            return updated_node
+        new_body = updated_node.body.with_changes(body=tuple(new_body_items))
+        return updated_node.with_changes(body=new_body)
+
+    def _maybe_rewrite_config_class(
+        self, stmt: cst.BaseStatement
+    ) -> cst.BaseStatement | None:
+        if not (
+            isinstance(stmt, cst.ClassDef)
+            and isinstance(stmt.name, cst.Name)
+            and stmt.name.value == "Config"
+        ):
+            return None
+        plan = _plan_config_migration(stmt)
+        if not plan.convertible:
+            return None
+        self.needs_config_dict_import = True
+        return _build_model_config_statement(plan)
+
     def _mark_needs_import(self, old: str) -> None:
         if old == "validator":
             self.needs_field_validator_import = True
         elif old == "root_validator":
             self.needs_model_validator_import = True
+
+
+@dataclass
+class _ConfigMigrationPlan:
+    """Result of analysing an inner ``class Config`` for migration.
+
+    ``convertible`` is ``True`` only when *every* assignment in the body can
+    be translated to a ``ConfigDict(...)`` call without losing information.
+    ``entries`` preserves the original order and stores the rewritten
+    ``(new_key, new_value)`` pairs.
+    """
+
+    convertible: bool
+    entries: list[tuple[str, cst.BaseExpression]] = field(default_factory=list)
+
+
+def _plan_config_migration(node: cst.ClassDef) -> _ConfigMigrationPlan:
+    """Decide whether ``class Config`` can be safely rewritten.
+
+    Rules:
+    * Body must contain only ``SimpleStatementLine``s with a single
+      ``Assign``/``AnnAssign`` target that is a plain ``Name``.
+    * Each key must appear in :data:`_CONFIG_KEY_RENAMES`. Keys mapped to
+      ``None`` are removed-in-v2 and abort the migration.
+    * If a key has an entry in :data:`_CONFIG_VALUE_TRANSFORM`, the transform
+      must succeed (returns a non-``None`` expression).
+    * Docstrings and ``pass`` are tolerated.
+    """
+    plan = _ConfigMigrationPlan(convertible=True)
+    for stmt in node.body.body:
+        if not isinstance(stmt, cst.SimpleStatementLine):
+            plan.convertible = False
+            return plan
+        for small in stmt.body:
+            key, value = _extract_config_entry(small)
+            if key is None:
+                # Docstring / pass: tolerated, contributes nothing.
+                continue
+            if key == "__invalid__":
+                plan.convertible = False
+                return plan
+            if key not in _CONFIG_KEY_RENAMES:
+                plan.convertible = False
+                return plan
+            new_key = _CONFIG_KEY_RENAMES[key]
+            if new_key is None:
+                plan.convertible = False
+                return plan
+            assert value is not None
+            transform = _CONFIG_VALUE_TRANSFORM.get(key)
+            if transform is None:
+                new_value: cst.BaseExpression = value
+            else:
+                transformed = transform(value)
+                if transformed is None:
+                    plan.convertible = False
+                    return plan
+                new_value = transformed
+            plan.entries.append((new_key, new_value))
+    return plan
+
+
+def _extract_config_entry(
+    small: cst.BaseSmallStatement,
+) -> tuple[str | None, cst.BaseExpression | None]:
+    """Return the ``(key, value)`` of a ``Config`` body line.
+
+    * ``(None, None)`` — tolerated, ignored (``pass`` or docstring).
+    * ``("__invalid__", None)`` — unsupported shape; abort migration.
+    * ``(name, expr)`` — regular assignment.
+    """
+    if isinstance(small, cst.Assign):
+        if len(small.targets) != 1:
+            return ("__invalid__", None)
+        target = small.targets[0].target
+        if not isinstance(target, cst.Name):
+            return ("__invalid__", None)
+        return (target.value, small.value)
+    if isinstance(small, cst.AnnAssign) and small.value is not None:
+        if not isinstance(small.target, cst.Name):
+            return ("__invalid__", None)
+        return (small.target.value, small.value)
+    if isinstance(small, cst.Pass):
+        return (None, None)
+    if isinstance(small, cst.Expr) and isinstance(small.value, cst.SimpleString):
+        return (None, None)
+    return ("__invalid__", None)
+
+
+def _build_model_config_statement(
+    plan: _ConfigMigrationPlan,
+) -> cst.SimpleStatementLine:
+    """Build ``model_config = ConfigDict(<entries>)`` from a migration plan.
+
+    Arguments use ``key=value`` syntax with no whitespace around ``=`` to
+    match the conventional Python style for keyword arguments.
+    """
+    args: list[cst.Arg] = []
+    for idx, (key, value) in enumerate(plan.entries):
+        is_last = idx == len(plan.entries) - 1
+        args.append(
+            cst.Arg(
+                keyword=cst.Name(key),
+                value=value,
+                equal=cst.AssignEqual(
+                    whitespace_before=cst.SimpleWhitespace(""),
+                    whitespace_after=cst.SimpleWhitespace(""),
+                ),
+                comma=cst.MaybeSentinel.DEFAULT if is_last else cst.Comma(
+                    whitespace_after=cst.SimpleWhitespace(" ")
+                ),
+            )
+        )
+    call = cst.Call(func=cst.Name("ConfigDict"), args=args)
+    return cst.SimpleStatementLine(
+        body=[
+            cst.Assign(
+                targets=[cst.AssignTarget(target=cst.Name("model_config"))],
+                value=call,
+            )
+        ]
+    )
 
 
 def _ensure_pydantic_import(module: cst.Module, name: str) -> cst.Module:
