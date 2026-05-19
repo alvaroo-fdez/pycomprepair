@@ -5,6 +5,7 @@ import pytest
 from pycomprepair.core.plugin import PluginRegistry, reset_registry
 from pycomprepair.plugins.fastapi_migration import plugin as fastapi_plugin
 from pycomprepair.plugins.pydantic_v2 import plugin as pydantic_plugin
+from pycomprepair.plugins.sqlalchemy_v2 import plugin as sqlalchemy_plugin
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -27,6 +28,7 @@ def registry() -> PluginRegistry:
     reg = PluginRegistry()
     reg.register(pydantic_plugin)
     reg.register(fastapi_plugin)
+    reg.register(sqlalchemy_plugin)
     return reg
 
 

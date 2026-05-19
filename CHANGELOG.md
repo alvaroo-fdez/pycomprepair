@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SQLAlchemy 1.4 → 2.0 plugin** (`pycomprepair.plugins.sqlalchemy_v2`):
+  - `SQL001` — auto-fix `from sqlalchemy.ext.declarative import declarative_base`
+    to `from sqlalchemy.orm import declarative_base` (single-name imports only;
+    mixed imports keep the warning without rewrite).
+  - `SQL002` — auto-fix `session.query(Model).get(pk)` to
+    `session.get(Model, pk)`. Skips the Flask-SQLAlchemy `Model.query.get`
+    idiom and `query(A, B).get(...)` to avoid unsafe rewrites.
+  - `SQL003` — flag `declarative_base()` calls and suggest the new
+    `DeclarativeBase` class style (no codemod, since the safe rewrite depends
+    on mixins / naming conventions).
+  - `SQL005` — informational note on `Query.update(...)` / `Query.delete()`:
+    `synchronize_session` defaults to `'auto'` in 2.0.
+  - Demo file at `examples/demo_sqlalchemy.py`.
 - **Reusable GitHub Action** (`action.yml`): composite action that any project
   can wire in five lines (`uses: alvaroo-fdez/pycomprepair@main`). It installs
   PyCompatRepair, scans/repairs, publishes the Markdown report on the run
