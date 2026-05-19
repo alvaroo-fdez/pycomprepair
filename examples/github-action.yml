@@ -1,0 +1,31 @@
+# Drop this file into ``.github/workflows/pycomprepair.yml`` of your project
+# to get a per-PR compatibility check powered by PyCompatRepair.
+
+name: Compatibility check
+
+on:
+  pull_request:
+    paths:
+      - "**/*.py"
+      - ".github/workflows/pycomprepair.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write  # required only when comment-on-pr is enabled
+
+jobs:
+  pycomprepair:
+    name: PyCompatRepair (Pydantic v2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run PyCompatRepair
+        uses: alvaroo-fdez/pycomprepair@main
+        with:
+          path: src
+          target: "pydantic>=2.0,<3.0"
+          mode: scan
+          fail-on-issues: "true"
+          comment-on-pr: "true"

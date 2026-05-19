@@ -48,6 +48,49 @@ pycomprepair repair ./src --target "pydantic>=2.0,<3.0"
 pycomprepair report ./src --target "pydantic>=2.0,<3.0" --format markdown
 ```
 
+## Úsalo como GitHub Action
+
+PyCompatRepair se distribuye también como _composite action_, así que puedes
+añadir un job de compatibilidad a cualquier repositorio Python en cinco líneas:
+
+```yaml
+# .github/workflows/pycomprepair.yml
+name: Compatibility check
+on: [pull_request]
+permissions:
+  contents: read
+  pull-requests: write  # solo si activas comment-on-pr
+
+jobs:
+  pycomprepair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: alvaroo-fdez/pycomprepair@main
+        with:
+          path: src
+          target: "pydantic>=2.0,<3.0"
+          mode: scan            # "scan" (default) o "repair"
+          fail-on-issues: "true"
+          comment-on-pr: "true" # publica/actualiza un comentario idempotente
+```
+
+Inputs principales:
+
+| Input            | Default | Descripción                                                              |
+| ---------------- | ------- | ------------------------------------------------------------------------ |
+| `path`           | `.`     | Ruta a escanear/reparar.                                                 |
+| `target`         | —       | Requisito objetivo, p.ej. `"pydantic>=2.0,<3.0"`.                        |
+| `mode`           | `scan`  | `scan` solo detecta; `repair` además incluye diffs en el reporte.        |
+| `fail-on-issues` | `true`  | Falla el job si se detectan incompatibilidades.                          |
+| `comment-on-pr`  | `false` | Publica/actualiza un comentario en el PR con el reporte (idempotente).   |
+| `version`        | —       | Especificador opcional, p.ej. `==0.1.0` para fijar versión.              |
+| `git-ref`        | —       | Instala desde un ref del repo (útil para probar cambios sin publicar).   |
+| `skip-install`   | `false` | Salta la instalación si ya tienes `pycomprepair` en el `PATH`.           |
+
+El reporte siempre se publica en el _step summary_ del job; los outputs
+`issues-count` y `report-path` quedan disponibles para pasos posteriores.
+
 ## Arquitectura
 
 ```

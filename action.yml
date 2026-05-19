@@ -1,0 +1,187 @@
+name: PyCompatRepair
+description: >-
+  Run PyCompatRepair to detect (and optionally repair) cross-version Python
+  dependency incompatibilities. Posts a Markdown report to the GitHub Step
+  Summary and, optionally, to the originating pull request.
+author: PyCompatRepair contributors
+branding:
+  icon: refresh-cw
+  color: blue
+
+inputs:
+  path:
+    description: File or directory to analyze.
+    required: false
+    default: "."
+  target:
+    description: >-
+      Target requirement specifier, e.g. "pydantic>=2.0,<3.0" or
+      "fastapi>=0.110". Required.
+    required: true
+  mode:
+    description: One of "scan" (read-only) or "repair" (dry-run codemod).
+    required: false
+    default: scan
+  fail-on-issues:
+    description: >-
+      When true, the action exits non-zero if any incompatibility is detected.
+      Set to false in advisory / informational PR comments.
+    required: false
+    default: "true"
+  comment-on-pr:
+    description: >-
+      When true and the workflow runs on a pull_request event, the report is
+      posted (or upserted) as a PR comment authored by github-actions[bot].
+    required: false
+    default: "false"
+  python-version:
+    description: Python version to install before running PyCompatRepair.
+    required: false
+    default: "3.12"
+  version:
+    description: >-
+      PyCompatRepair version spec (e.g. "0.1.0", ">=0.1,<0.2"). Defaults to
+      the latest released version. To pin to a Git ref, use git-ref instead.
+    required: false
+    default: ""
+  git-ref:
+    description: >-
+      Optional Git ref of the PyCompatRepair repository to install from
+      (overrides "version"). Useful for trying unreleased changes.
+    required: false
+    default: ""
+  skip-install:
+    description: >-
+      When true, skip the install step entirely. Use this when the caller has
+      already made ``pycomprepair`` importable (e.g. ``pip install -e .`` in a
+      monorepo or self-dogfooding workflow). The action assumes the
+      ``pycomprepair`` CLI is on ``PATH``.
+    required: false
+    default: "false"
+
+outputs:
+  issues-count:
+    description: Number of incompatibilities detected.
+    value: ${{ steps.run.outputs.issues-count }}
+  report-path:
+    description: Path to the Markdown report file written by the action.
+    value: ${{ steps.run.outputs.report-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      if: inputs.skip-install != 'true'
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install PyCompatRepair
+      if: inputs.skip-install != 'true'
+      shell: bash
+      env:
+        PCR_VERSION: ${{ inputs.version }}
+        PCR_GIT_REF: ${{ inputs.git-ref }}
+      run: |
+        set -euo pipefail
+        python -m pip install --upgrade pip
+        if [[ -n "${PCR_GIT_REF}" ]]; then
+          python -m pip install \
+            "pycomprepair @ git+https://github.com/alvaroo-fdez/pycomprepair@${PCR_GIT_REF}"
+        elif [[ -n "${PCR_VERSION}" ]]; then
+          python -m pip install "pycomprepair${PCR_VERSION}"
+        else
+          python -m pip install pycomprepair
+        fi
+
+    - name: Run PyCompatRepair
+      id: run
+      shell: bash
+      env:
+        PCR_PATH: ${{ inputs.path }}
+        PCR_TARGET: ${{ inputs.target }}
+        PCR_MODE: ${{ inputs.mode }}
+        PCR_FAIL_ON_ISSUES: ${{ inputs.fail-on-issues }}
+      run: |
+        set -uo pipefail
+        report="$RUNNER_TEMP/pycomprepair-report.md"
+
+        # Always render a Markdown report (no diffs in scan mode; include
+        # them in repair mode so users see the proposed codemods).
+        if [[ "${PCR_MODE}" == "repair" ]]; then
+          pycomprepair report "${PCR_PATH}" \
+            --target "${PCR_TARGET}" \
+            --format markdown \
+            --with-diff \
+            --output "${report}"
+        else
+          pycomprepair report "${PCR_PATH}" \
+            --target "${PCR_TARGET}" \
+            --format markdown \
+            --output "${report}"
+        fi
+
+        # Extract the issue count from the Markdown report; the renderer
+        # writes a canonical "Detected **N** incompatibilities ..." line
+        # (or "No incompatibilities detected." when N == 0).
+        if grep -q "No incompatibilities detected" "${report}"; then
+          count=0
+        else
+          count=$(grep -oE 'Detected \*\*[0-9]+\*\*' "${report}" \
+                    | head -n 1 | grep -oE '[0-9]+' || echo 0)
+          count=${count:-0}
+        fi
+
+        echo "issues-count=${count}" >> "$GITHUB_OUTPUT"
+        echo "report-path=${report}" >> "$GITHUB_OUTPUT"
+
+        # Always surface the report on the run summary so reviewers don't
+        # need to download an artifact to see it.
+        {
+          echo "## PyCompatRepair"
+          echo ""
+          echo "Target: \`${PCR_TARGET}\`  •  Mode: \`${PCR_MODE}\`  •  Issues: **${count}**"
+          echo ""
+          cat "${report}"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        if [[ "${PCR_FAIL_ON_ISSUES}" == "true" && "${count}" -gt 0 ]]; then
+          echo "::error::PyCompatRepair detected ${count} incompatibility(ies). Fail-on-issues is enabled."
+          exit 1
+        fi
+
+    - name: Comment on pull request
+      if: >-
+        inputs.comment-on-pr == 'true' &&
+        github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      env:
+        REPORT_PATH: ${{ steps.run.outputs.report-path }}
+        ISSUES_COUNT: ${{ steps.run.outputs.issues-count }}
+        TARGET: ${{ inputs.target }}
+      with:
+        script: |
+          const fs = require('fs');
+          const marker = '<!-- pycomprepair-action -->';
+          const body = [
+            marker,
+            `### PyCompatRepair — ${process.env.ISSUES_COUNT} issue(s) for \`${process.env.TARGET}\``,
+            '',
+            fs.readFileSync(process.env.REPORT_PATH, 'utf8'),
+          ].join('\n');
+          const { owner, repo } = context.repo;
+          const issue_number = context.payload.pull_request.number;
+          // Upsert: replace the existing comment if we already wrote one.
+          const { data: comments } = await github.rest.issues.listComments({
+            owner, repo, issue_number, per_page: 100,
+          });
+          const existing = comments.find(c => c.body && c.body.startsWith(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner, repo, comment_id: existing.id, body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner, repo, issue_number, body,
+            });
+          }

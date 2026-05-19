@@ -1,0 +1,69 @@
+name: Self-dogfood
+
+# Validates that ./action.yml works end-to-end against examples/.
+# Runs the local action (uses: ./) so we do not depend on a published
+# PyPI release; the action's git-ref input mode would also work.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "action.yml"
+      - "src/**"
+      - "examples/**"
+      - ".github/workflows/self-dogfood.yml"
+  pull_request:
+    paths:
+      - "action.yml"
+      - "src/**"
+      - "examples/**"
+      - ".github/workflows/self-dogfood.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write  # for the optional PR-comment step
+
+jobs:
+  scan-demo:
+    name: Scan examples/ (advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install from the working tree (overrides the version/git-ref inputs
+      # by re-running pip with -e . right after the action's install step).
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install local checkout
+        run: python -m pip install -e .
+
+      - name: Run PyCompatRepair (Pydantic v2)
+        id: pcr
+        uses: ./
+        with:
+          path: examples
+          target: "pydantic>=2.0,<3.0"
+          mode: scan
+          # Use the editable install from the previous step instead of
+          # reinstalling from PyPI (which has no release yet).
+          skip-install: "true"
+          # The demo intentionally exercises every supported rule, so the
+          # action would normally fail. We mark this run as advisory.
+          fail-on-issues: "false"
+          comment-on-pr: ${{ github.event_name == 'pull_request' }}
+
+      - name: Assert the demo exercises every expected rule
+        shell: bash
+        env:
+          ISSUES: ${{ steps.pcr.outputs.issues-count }}
+        run: |
+          set -euo pipefail
+          # 6 issues today: PYD001/002/003/005/006/008. Pin the number so a
+          # regression in the rules surfaces immediately on CI.
+          if [[ "${ISSUES}" != "6" ]]; then
+            echo "::error::expected 6 issues, action reported ${ISSUES}"
+            exit 1
+          fi
