@@ -31,7 +31,7 @@ def _make_console(stderr: bool = False) -> Console:
     """
     if sys.stdout.isatty():
         return Console(stderr=stderr)
-    return Console(stderr=stderr, width=200, force_terminal=False, soft_wrap=False)
+    return Console(stderr=stderr, width=120, force_terminal=False, soft_wrap=False)
 
 
 console = _make_console()
@@ -166,16 +166,33 @@ def version() -> None:
 
 
 def _print_issue_table(issues: list[Issue]) -> None:
+    """Print issues using the layout that best fits the current terminal.
+
+    For wide terminals (>=120 columns) we use a Rich :class:`Table`; for
+    narrower ones we fall back to a compact, per-issue list so messages and
+    fixes are not fragmented vertically by Rich's auto column shrinking.
+    """
     if not issues:
         console.print("[green]No incompatibilities detected.[/green]")
         return
+
+    width = console.size.width
+    sorted_issues = sorted(issues, key=lambda i: (str(i.file), i.line, i.column))
+
+    if width >= 140:
+        _print_issue_table_wide(sorted_issues)
+    else:
+        _print_issue_list_compact(sorted_issues)
+
+
+def _print_issue_table_wide(issues: list[Issue]) -> None:
     table = Table(title=f"PyCompatRepair — {len(issues)} issue(s)", show_lines=False)
     table.add_column("Location", style="cyan", no_wrap=True)
-    table.add_column("Code", style="magenta")
-    table.add_column("Severity")
-    table.add_column("Message", overflow="fold")
-    table.add_column("Fix", overflow="fold")
-    for issue in sorted(issues, key=lambda i: (str(i.file), i.line, i.column)):
+    table.add_column("Code", style="magenta", no_wrap=True)
+    table.add_column("Severity", no_wrap=True)
+    table.add_column("Message", overflow="fold", ratio=2)
+    table.add_column("Fix", overflow="fold", ratio=1)
+    for issue in issues:
         table.add_row(
             issue.location,
             issue.code,
@@ -184,6 +201,28 @@ def _print_issue_table(issues: list[Issue]) -> None:
             issue.fix.description if issue.fix else "[dim](manual)[/dim]",
         )
     console.print(table)
+
+
+def _print_issue_list_compact(issues: list[Issue]) -> None:
+    """Render issues as a compact, line-oriented list.
+
+    Used on narrow terminals where a Rich :class:`Table` would shrink each
+    column into a thin vertical strip. The layout is one block per issue::
+
+        warning  PYD001  path/to/file.py:20:10
+            `.dict()` is deprecated; use `.model_dump()`.
+            fix: Rename `.dict(...)` to `.model_dump(...)`
+    """
+    console.print(f"[bold]PyCompatRepair — {len(issues)} issue(s)[/bold]")
+    for issue in issues:
+        console.print(
+            f"{_severity_style(issue.severity)}  "
+            f"[magenta]{issue.code}[/magenta]  "
+            f"[cyan]{issue.location}[/cyan]"
+        )
+        console.print(f"    {issue.message}")
+        fix_text = issue.fix.description if issue.fix else "[dim](manual)[/dim]"
+        console.print(f"    [dim]fix:[/dim] {fix_text}")
 
 
 def _severity_style(sev: Severity) -> str:
