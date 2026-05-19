@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/alvaroo-fdez/pycomprepair/actions/workflows/ci.yml/badge.svg)](https://github.com/alvaroo-fdez/pycomprepair/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/pycomprepair.svg)](https://pypi.org/project/pycomprepair/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/pycomprepair.svg)](https://pypi.org/project/pycomprepair/)
+[![PyPI downloads](https://static.pepy.tech/badge/pycomprepair)](https://pepy.tech/project/pycomprepair)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
