@@ -1,5 +1,15 @@
 # PyCompatRepair (`pycomprepair`)
 
+[![CI](https://github.com/alvaroo-fdez/pycomprepair/actions/workflows/ci.yml/badge.svg)](https://github.com/alvaroo-fdez/pycomprepair/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/downloads/)
+[![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
+<!-- Re-enable once published on PyPI:
+[![PyPI version](https://img.shields.io/pypi/v/pycomprepair.svg)](https://pypi.org/project/pycomprepair/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/pycomprepair.svg)](https://pypi.org/project/pycomprepair/)
+-->
+
 > Asistente de upgrades semánticos y codemods de compatibilidad para dependencias Python.
 
 `pycomprepair` analiza el código de tu proyecto frente a una versión **actual** y una versión **objetivo** de una librería, detecta call-sites incompatibles y aplica codemods verificables con `--dry-run`, diff legible y posibilidad de rollback.
