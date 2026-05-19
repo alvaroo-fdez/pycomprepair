@@ -1,14 +1,12 @@
 # PyCompatRepair (`pycomprepair`)
 
 [![CI](https://github.com/alvaroo-fdez/pycomprepair/actions/workflows/ci.yml/badge.svg)](https://github.com/alvaroo-fdez/pycomprepair/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/pycomprepair.svg)](https://pypi.org/project/pycomprepair/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/pycomprepair.svg)](https://pypi.org/project/pycomprepair/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
-<!-- Re-enable once published on PyPI:
-[![PyPI version](https://img.shields.io/pypi/v/pycomprepair.svg)](https://pypi.org/project/pycomprepair/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/pycomprepair.svg)](https://pypi.org/project/pycomprepair/)
--->
 
 > Asistente de upgrades semánticos y codemods de compatibilidad para dependencias Python.
 
@@ -23,11 +21,21 @@ A diferencia de herramientas como `pyupgrade` (solo sintaxis del lenguaje) o `bu
 - **Plugin Django 5.0**: `smart_text`/`force_text` → `smart_str`/`force_str`, `ugettext*` → `gettext*`, aviso sobre `django.utils.timezone.utc` y `Meta.index_together`.
 - **CLI** (`pycomprepair`) con `scan`, `repair`, `report`.
 
-## Estado
+## Instalación
 
-Pre-alpha. Estamos construyendo el MVP.
+```bash
+pip install pycomprepair
+```
 
-## Instalación (desde fuente, mientras no esté en PyPI)
+o, si usas [uv](https://github.com/astral-sh/uv):
+
+```bash
+uv pip install pycomprepair
+```
+
+Requiere Python 3.10+.
+
+Para desarrollo local sobre el repositorio:
 
 ```bash
 uv venv

@@ -4,13 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pycomprepair"
-version = "0.1.0"
+version = "0.1.1"
 description = "Semantic upgrade assistant and compatibility codemods for Python dependencies."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{ name = "PyCompatRepair contributors" }]
+authors = [{ name = "Álvaro Fernández" }]
+maintainers = [{ name = "Álvaro Fernández" }]
 keywords = [
     "migration",
     "codemod",
@@ -22,7 +23,7 @@ keywords = [
     "libcst",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
@@ -58,10 +59,11 @@ dev = [
 pycomprepair = "pycomprepair.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/pycomprepair/pycomprepair"
-Documentation = "https://github.com/pycomprepair/pycomprepair#readme"
-Issues = "https://github.com/pycomprepair/pycomprepair/issues"
-Source = "https://github.com/pycomprepair/pycomprepair"
+Homepage = "https://github.com/alvaroo-fdez/pycomprepair"
+Documentation = "https://github.com/alvaroo-fdez/pycomprepair#readme"
+Issues = "https://github.com/alvaroo-fdez/pycomprepair/issues"
+Source = "https://github.com/alvaroo-fdez/pycomprepair"
+Changelog = "https://github.com/alvaroo-fdez/pycomprepair/blob/main/CHANGELOG.md"
 
 [project.entry-points."pycomprepair.plugins"]
 pydantic = "pycomprepair.plugins.pydantic_v2:plugin"

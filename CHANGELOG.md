@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-19
+
+Metadata-only release: refreshes the PyPI project page after the first
+publication.
+
+### Changed
+
+- Author metadata set to Álvaro Fernández (`alvaroo-fdez`) instead of the
+  generic “PyCompatRepair contributors” placeholder.
+- Project status moved from `Development Status :: 3 - Alpha` to
+  `Development Status :: 4 - Beta` now that the package is published and the
+  core flow (`scan` / `repair` / `report` / `discover`) is exercised against
+  real-world projects.
+- README rewritten to reflect installation from PyPI (`pip install
+  pycomprepair`) instead of the pre-publication “install from source”
+  instructions, and PyPI version / downloads badges re-enabled.
+- Project URLs (`Homepage`, `Issues`, `Source`, …) point to the real
+  `alvaroo-fdez/pycomprepair` repository, and a `Changelog` URL was added.
+
 ## [0.1.0] — 2026-05-19
 
 First public release on PyPI.
