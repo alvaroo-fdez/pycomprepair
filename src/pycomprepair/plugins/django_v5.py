@@ -263,6 +263,42 @@ class _DjangoRenameTransformer(cst.CSTTransformer):
             return updated_node
         return updated_node.with_changes(name=cst.Name(new))
 
+    def leave_ImportFrom(
+        self, original_node: cst.ImportFrom, updated_node: cst.ImportFrom
+    ) -> cst.ImportFrom:
+        """Drop duplicates introduced by the rename.
+
+        ``from django.utils.encoding import smart_text, smart_str`` becomes
+        ``... import smart_str, smart_str`` after ``leave_ImportAlias`` does
+        its job. This pass collapses the duplicates while preserving the
+        first occurrence's ``as`` alias (if any) and resetting the trailing
+        comma on the new last alias.
+        """
+        names = updated_node.names
+        if isinstance(names, cst.ImportStar):
+            return updated_node
+        seen: set[tuple[str, str | None]] = set()
+        deduped: list[cst.ImportAlias] = []
+        for alias in names:
+            if not isinstance(alias.name, cst.Name):
+                deduped.append(alias)
+                continue
+            asname_value: str | None = None
+            if alias.asname is not None and isinstance(alias.asname.name, cst.Name):
+                asname_value = alias.asname.name.value
+            key = (alias.name.value, asname_value)
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(alias)
+        if len(deduped) == len(names):
+            return updated_node
+        # Drop the trailing comma on the last surviving alias so the result
+        # parses cleanly (libcst keeps trailing commas only when explicitly
+        # configured on the alias).
+        deduped[-1] = deduped[-1].with_changes(comma=cst.MaybeSentinel.DEFAULT)
+        return updated_node.with_changes(names=deduped)
+
     def leave_Name(self, original_node: cst.Name, updated_node: cst.Name) -> cst.BaseExpression:
         new = self._renames.get(updated_node.value)
         if new is None:

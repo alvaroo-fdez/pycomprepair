@@ -196,6 +196,29 @@ def test_preserves_aliased_import(tmp_path: Path, registry: PluginRegistry) -> N
     assert "label = _(\"Hello\")" in new
 
 
+def test_dedupes_collapsed_imports(tmp_path: Path, registry: PluginRegistry) -> None:
+    # Real-world case found by running ``discover`` against Django 5: a file
+    # that already imports the new symbol next to the legacy one ends up with
+    # duplicated names after the rename pass. The codemod must drop the
+    # duplicate to leave clean, ruff-friendly output.
+    _write(
+        tmp_path,
+        "m.py",
+        """
+        from django.utils.encoding import smart_text, force_text, smart_str
+        from django.utils.translation import ugettext, ugettext_lazy as _, gettext
+        """,
+    )
+    results = repair_path(tmp_path, "django>=5.0", dry_run=True, registry=registry)
+    new = results[0].new_source
+    assert "from django.utils.encoding import smart_str, force_str\n" in new
+    assert "smart_str, smart_str" not in new
+    assert (
+        "from django.utils.translation import gettext, gettext_lazy as _\n" in new
+    )
+    assert new.count("gettext,") == 1
+
+
 # ---------------------------------------------------------------------------
 # DJA004 — index_together
 # ---------------------------------------------------------------------------

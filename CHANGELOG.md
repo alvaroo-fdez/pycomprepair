@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Django plugin no longer leaves duplicate import aliases**. When a file
+  already imported the new name next to the legacy one
+  (`from django.utils.encoding import smart_text, smart_str`), the rename
+  used to produce `smart_str, smart_str`. The codemod now deduplicates the
+  alias list while preserving any `as` rebindings.
+
 ### Added
 
 - **Dynamic API discovery via griffe**. New `pycomprepair.discovery` package
