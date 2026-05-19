@@ -50,6 +50,34 @@ pycomprepair repair ./src --target "pydantic>=2.0,<3.0"
 pycomprepair report ./src --target "pydantic>=2.0,<3.0" --format markdown
 ```
 
+## Configuración por proyecto
+
+Para evitar repetir `--target` y demás flags en cada llamada, PyCompatRepair lee
+configuración de un fichero `pycomprepair.toml` (o de una sección
+`[tool.pycomprepair]` en tu `pyproject.toml`). La búsqueda sube por los
+directorios padre desde la ruta que pases en la CLI, así que puedes ponerlo en
+la raíz del repo:
+
+```toml
+# pycomprepair.toml
+target = "pydantic>=2.0,<3.0"
+min_confidence = 0.8
+unsafe_fixes = false
+ignore = ["PYD002", "DJA004"]  # códigos de regla que no quieres ver
+```
+
+Equivalente dentro de `pyproject.toml`:
+
+```toml
+[tool.pycomprepair]
+target = "pydantic>=2.0,<3.0"
+ignore = ["PYD002"]
+```
+
+Los flags de la CLI tienen prioridad sobre la configuración, y la configuración
+sobre los valores por defecto. Con esto, `pycomprepair scan ./src` ya basta
+una vez configurado el proyecto.
+
 ## Úsalo como GitHub Action
 
 PyCompatRepair se distribuye también como _composite action_, así que puedes

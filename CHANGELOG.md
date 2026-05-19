@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Project configuration file** (`pycomprepair.toml` or `[tool.pycomprepair]`
+  inside `pyproject.toml`). Discovery walks up from the scanned path; CLI flags
+  win over file values, which win over built-in defaults. Supported keys:
+  `target`, `min_confidence`, `unsafe_fixes`, `ignore` (list of rule codes).
+  `--target` becomes optional on `scan` / `repair` / `report` when set in the
+  config. The engine learns an `ignore_codes` parameter so library users get
+  the same filtering for free.
 - **Django 4.x → 5.x plugin** (`pycomprepair.plugins.django_v5`):
   - `DJA001` — flag `django.utils.timezone.utc` (removed in 5.0; use
     `datetime.timezone.utc`). Detection only — the safe rewrite depends

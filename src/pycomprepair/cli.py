@@ -11,6 +11,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from pycomprepair.config import Config, load_config
 from pycomprepair.core.engine import RepairResult, repair_path, scan_path
 from pycomprepair.core.issue import Issue, Severity, is_actionable
 from pycomprepair.report.markdown import render_issues_markdown, render_repair_markdown
@@ -52,16 +53,19 @@ def scan(
         ),
     ],
     target: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--target",
             "-t",
-            help="Target requirement (e.g. 'pydantic>=2.0,<3.0').",
+            help="Target requirement (e.g. 'pydantic>=2.0,<3.0'). "
+            "Falls back to `target` in pycomprepair.toml when omitted.",
         ),
-    ],
+    ] = None,
 ) -> None:
     """Detect incompatibilities without modifying any files."""
-    issues = scan_path(path, target)
+    cfg = load_config(path)
+    target = _resolve_target(target, cfg)
+    issues = scan_path(path, target, ignore_codes=cfg.ignore)
     _print_issue_table(issues)
     if issues:
         raise typer.Exit(code=1)
@@ -80,8 +84,8 @@ def repair(
         ),
     ],
     target: Annotated[
-        str, typer.Option("--target", "-t", help="Target requirement.")
-    ],
+        str | None, typer.Option("--target", "-t", help="Target requirement.")
+    ] = None,
     dry_run: Annotated[
         bool,
         typer.Option(
@@ -94,32 +98,44 @@ def repair(
         typer.Option("--diff/--no-diff", help="Print a unified diff for each changed file."),
     ] = True,
     min_confidence: Annotated[
-        float,
+        float | None,
         typer.Option(
             "--min-confidence",
             help=(
                 "Only apply fixes whose confidence is >= this value (0.0-1.0). "
-                "Issues below the threshold are still reported."
+                "Issues below the threshold are still reported. Falls back to "
+                "the project config when omitted."
             ),
             min=0.0,
             max=1.0,
         ),
-    ] = 0.0,
+    ] = None,
     unsafe_fixes: Annotated[
-        bool,
+        bool | None,
         typer.Option(
             "--unsafe-fixes/--safe-fixes-only",
-            help="Also apply fixes marked as unsafe (e.g. ambiguous receivers).",
+            help="Also apply fixes marked as unsafe (e.g. ambiguous receivers). "
+            "Falls back to the project config when omitted.",
         ),
-    ] = False,
+    ] = None,
 ) -> None:
     """Apply codemods (dry-run by default; pass ``--write`` to persist)."""
+    cfg = load_config(path)
+    target = _resolve_target(target, cfg)
+    effective_min_confidence = (
+        cfg.min_confidence if min_confidence is None else min_confidence
+    )
+    effective_unsafe_fixes = (
+        cfg.unsafe_fixes if unsafe_fixes is None else unsafe_fixes
+    )
+
     results = repair_path(
         path,
         target,
         dry_run=dry_run,
-        min_confidence=min_confidence,
-        unsafe_fixes=unsafe_fixes,
+        min_confidence=effective_min_confidence,
+        unsafe_fixes=effective_unsafe_fixes,
+        ignore_codes=cfg.ignore,
     )
     changed = [r for r in results if r.changed]
 
@@ -133,7 +149,11 @@ def repair(
     actionable = sum(
         1
         for i in all_issues
-        if is_actionable(i, min_confidence=min_confidence, unsafe_fixes=unsafe_fixes)
+        if is_actionable(
+            i,
+            min_confidence=effective_min_confidence,
+            unsafe_fixes=effective_unsafe_fixes,
+        )
     )
     mode = "dry-run" if dry_run else "applied"
     console.print(
@@ -141,7 +161,7 @@ def repair(
         f"{len(changed)} file(s) would change, "
         f"{len(all_issues)} issue(s) detected, "
         f"{actionable} actionable under current gates "
-        f"(min-confidence={min_confidence}, unsafe-fixes={unsafe_fixes})."
+        f"(min-confidence={effective_min_confidence}, unsafe-fixes={effective_unsafe_fixes})."
     )
     if changed and dry_run:
         raise typer.Exit(code=1)
@@ -153,7 +173,7 @@ def report(
         Path,
         typer.Argument(exists=True, file_okay=True, dir_okay=True, readable=True, resolve_path=True),
     ],
-    target: Annotated[str, typer.Option("--target", "-t")],
+    target: Annotated[str | None, typer.Option("--target", "-t")] = None,
     fmt: Annotated[
         str,
         typer.Option(
@@ -176,11 +196,16 @@ def report(
         err_console.print(f"[red]Unsupported format:[/red] {fmt}")
         raise typer.Exit(code=2)
 
+    cfg = load_config(path)
+    target = _resolve_target(target, cfg)
+
     if include_diff:
-        results: list[RepairResult] = repair_path(path, target, dry_run=True)
+        results: list[RepairResult] = repair_path(
+            path, target, dry_run=True, ignore_codes=cfg.ignore
+        )
         text = render_repair_markdown(results)
     else:
-        issues = scan_path(path, target)
+        issues = scan_path(path, target, ignore_codes=cfg.ignore)
         text = render_issues_markdown(issues)
 
     if output is None:
@@ -264,6 +289,22 @@ def _severity_style(sev: Severity) -> str:
         Severity.WARNING: "[yellow]warning[/yellow]",
         Severity.ERROR: "[red]error[/red]",
     }[sev]
+
+
+def _resolve_target(target: str | None, cfg: Config) -> str:
+    """Return the requirement string, falling back to the project config.
+
+    Exits the CLI with a clear message when neither source provides one.
+    """
+    if target is not None:
+        return target
+    if cfg.target is not None:
+        return cfg.target
+    err_console.print(
+        "[red]Missing --target.[/red] Pass --target on the command line or set "
+        "`target` in `pycomprepair.toml` / `[tool.pycomprepair]` in `pyproject.toml`."
+    )
+    raise typer.Exit(code=2)
 
 
 def _print_diff(result: RepairResult) -> None:

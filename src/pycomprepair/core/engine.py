@@ -67,6 +67,7 @@ def scan_path(
     *,
     registry: PluginRegistry | None = None,
     options: dict[str, str] | None = None,
+    ignore_codes: frozenset[str] | set[str] | None = None,
 ) -> list[Issue]:
     """Scan ``path`` and return all detected :class:`Issue` objects.
 
@@ -82,10 +83,15 @@ def scan_path(
         Plugin registry. Defaults to the global one.
     options:
         Free-form options forwarded to plugins.
+    ignore_codes:
+        Optional set of rule codes (``"PYD001"``, ``"SQL002"``, ...) to drop
+        from the result. Typically populated from the project's
+        ``pycomprepair.toml``.
     """
     req = _coerce_requirement(target)
     reg = registry or get_registry()
     opts = options or {}
+    ignored = frozenset(ignore_codes or ())
     issues: list[Issue] = []
 
     for file in _iter_python_files(Path(path)):
@@ -97,7 +103,7 @@ def scan_path(
             target=req, file=file, source=source, module=module, options=opts
         )
         for plugin in reg.for_context(ctx):
-            issues.extend(plugin.scan(ctx))
+            issues.extend(i for i in plugin.scan(ctx) if i.code not in ignored)
 
     return issues
 
@@ -111,6 +117,7 @@ def repair_path(
     options: dict[str, str] | None = None,
     min_confidence: float = 0.0,
     unsafe_fixes: bool = False,
+    ignore_codes: frozenset[str] | set[str] | None = None,
 ) -> list[RepairResult]:
     """Scan and (optionally) apply codemods.
 
@@ -121,11 +128,13 @@ def repair_path(
     The ``min_confidence`` and ``unsafe_fixes`` gates control which issues
     are passed to each plugin's :meth:`Plugin.repair`. Issues that do not
     pass the gate still appear in :attr:`RepairResult.issues` so the report
-    remains complete; they are simply not auto-fixed.
+    remains complete; they are simply not auto-fixed. ``ignore_codes`` drops
+    the listed rules entirely (they are neither reported nor applied).
     """
     req = _coerce_requirement(target)
     reg = registry or get_registry()
     opts = options or {}
+    ignored = frozenset(ignore_codes or ())
     results: list[RepairResult] = []
 
     for file in _iter_python_files(Path(path)):
@@ -150,7 +159,7 @@ def repair_path(
                 module=current_module,
                 options=opts,
             )
-            issues = plugin.scan(ctx)
+            issues = [i for i in plugin.scan(ctx) if i.code not in ignored]
             all_issues.extend(issues)
             if not issues:
                 continue
