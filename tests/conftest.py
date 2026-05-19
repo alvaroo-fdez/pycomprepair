@@ -7,6 +7,16 @@ from pycomprepair.plugins.fastapi_migration import plugin as fastapi_plugin
 from pycomprepair.plugins.pydantic_v2 import plugin as pydantic_plugin
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Register CLI flags consumed by individual tests."""
+    parser.addoption(
+        "--update-golden",
+        action="store_true",
+        default=False,
+        help="Rewrite golden fixtures with the current codemod output.",
+    )
+
+
 @pytest.fixture
 def registry() -> PluginRegistry:
     """Return a registry pre-loaded with the built-in plugins.
