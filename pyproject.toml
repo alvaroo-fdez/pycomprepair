@@ -67,6 +67,7 @@ Source = "https://github.com/pycomprepair/pycomprepair"
 pydantic = "pycomprepair.plugins.pydantic_v2:plugin"
 fastapi = "pycomprepair.plugins.fastapi_migration:plugin"
 sqlalchemy = "pycomprepair.plugins.sqlalchemy_v2:plugin"
+django = "pycomprepair.plugins.django_v5:plugin"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pycomprepair"]

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Django 4.x → 5.x plugin** (`pycomprepair.plugins.django_v5`):
+  - `DJA001` — flag `django.utils.timezone.utc` (removed in 5.0; use
+    `datetime.timezone.utc`). Detection only — the safe rewrite depends
+    on what is already imported in the file.
+  - `DJA002` — rewrite `smart_text` / `force_text` to `smart_str` / `force_str`
+    in both the `from django.utils.encoding import` line and bare-name call
+    sites. Aliased imports (`... as _`) are preserved.
+  - `DJA003` — rewrite `ugettext` / `ugettext_lazy` / `ugettext_noop` to
+    their `gettext*` equivalents (same import + call-site rewrite).
+  - `DJA004` — flag `Meta.index_together`; no auto-fix since merging into
+    an existing `indexes = [...]` while preserving order is not a safe
+    automatic transform.
+  - Demo file at `examples/demo_django.py`.
 - **`--min-confidence` / `--unsafe-fixes` flags** on `pycomprepair repair`:
   filter which fixes are auto-applied without hiding detection from the
   report. Each issue's `Fix` already exposes `confidence` and `safe`; the
