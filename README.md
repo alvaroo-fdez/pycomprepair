@@ -78,6 +78,25 @@ Los flags de la CLI tienen prioridad sobre la configuración, y la configuració
 sobre los valores por defecto. Con esto, `pycomprepair scan ./src` ya basta
 una vez configurado el proyecto.
 
+## Descubrimiento dinámico (`discover`)
+
+Más allá de los plugins manuales, `pycomprepair` puede consultar la API
+**real** de un paquete instalado mediante [griffe](https://mkdocstrings.github.io/griffe/)
+y avisarte de imports que ya no existen en esa versión. Es la forma más rápida
+de auditar tu código frente al venv objetivo:
+
+```bash
+# Crea un venv con la versión a la que quieres migrar
+uv pip install "django==5.0.*"
+
+# Encuentra imports rotos respecto a la Django instalada
+pycomprepair discover ./src --package django
+```
+
+Cada importación cuyo símbolo no figura en la API cargada genera un issue
+`DSC001`. Esto cubre renombrados y eliminaciones que aún no están reflejados
+en los plugins escritos a mano y sirve como red de seguridad genérica.
+
 ## Úsalo como GitHub Action
 
 PyCompatRepair se distribuye también como _composite action_, así que puedes

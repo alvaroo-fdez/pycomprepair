@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dynamic API discovery via griffe**. New `pycomprepair.discovery` package
+  loads the *installed* version of a third-party library and exposes its
+  public surface as an `APIIndex`. The new `pycomprepair discover PATH
+  --package NAME` CLI command flags any `from pkg import X` whose symbol no
+  longer exists in the loaded API as a `DSC001` issue, providing a generic
+  safety net for renames and removals that are not yet covered by a
+  hand-written plugin.
 - **Project configuration file** (`pycomprepair.toml` or `[tool.pycomprepair]`
   inside `pyproject.toml`). Discovery walks up from the scanned path; CLI flags
   win over file values, which win over built-in defaults. Supported keys:

@@ -216,6 +216,64 @@ def report(
 
 
 @app.command()
+def discover(
+    path: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=True,
+            dir_okay=True,
+            readable=True,
+            resolve_path=True,
+            help="File or directory to scan for missing imports.",
+        ),
+    ],
+    package: Annotated[
+        list[str],
+        typer.Option(
+            "--package",
+            "-p",
+            help="Package name to introspect (repeat to validate several). "
+            "The locally installed version is read via griffe.",
+        ),
+    ],
+) -> None:
+    """Flag imports that point to symbols missing from the installed package.
+
+    Run inside an environment where the *target* version of the package is
+    installed (typically the upgraded virtualenv). Every ``from pkg import X``
+    whose ``pkg.X`` is no longer present in the loaded API is reported as a
+    ``DSC001`` issue, which usually signals a rename or removal that the
+    hand-written plugins do not yet cover.
+    """
+    from pycomprepair.discovery import (
+        APIIndex,
+        PackageNotInstalledError,
+        load_api,
+        scan_missing_imports,
+    )
+
+    real_indexes: dict[str, APIIndex] = {}
+    for pkg in package:
+        try:
+            real_indexes[pkg] = load_api(pkg)
+        except PackageNotInstalledError as exc:
+            err_console.print(f"[red]error:[/red] {exc}")
+            raise typer.Exit(code=2) from exc
+
+    from pycomprepair.core.engine import _iter_python_files
+
+    issues: list[Issue] = []
+    for file in _iter_python_files(path):
+        source = file.read_text(encoding="utf-8")
+        issues.extend(scan_missing_imports(file, source, real_indexes))
+
+    _print_issue_table(issues)
+    if issues:
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def version() -> None:
     """Print the installed PyCompatRepair version."""
     from pycomprepair import __version__
