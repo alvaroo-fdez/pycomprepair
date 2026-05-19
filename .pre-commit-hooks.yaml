@@ -1,0 +1,50 @@
+# Hooks exposed for use via https://pre-commit.com.
+#
+# Example consumer ``.pre-commit-config.yaml``::
+#
+#     repos:
+#       - repo: https://github.com/alvaroo-fdez/pycomprepair
+#         rev: v0.2.0
+#         hooks:
+#           - id: pycomprepair-scan
+#             # If you don't keep a `pycomprepair.toml`, pass the target here:
+#             # args: ["--target", "django>=5.0,<5.1"]
+#           - id: pycomprepair-discover
+#             args: ["--package", "django"]
+#
+# The hooks default to scanning the project root (``.``); override ``files``
+# or pass an explicit path via ``args`` if you only care about a subtree.
+
+- id: pycomprepair-scan
+  name: PyCompatRepair scan
+  description: >-
+    Detect incompatibilities for the configured target requirement without
+    modifying any files. Reads ``target``/``ignore`` from ``pycomprepair.toml``
+    or ``[tool.pycomprepair]`` in ``pyproject.toml`` when present.
+  entry: pycomprepair scan .
+  language: python
+  types: [python]
+  pass_filenames: false
+  require_serial: true
+
+- id: pycomprepair-repair-check
+  name: PyCompatRepair repair (dry-run)
+  description: >-
+    Run codemods in dry-run mode and fail if any file would change. Useful as
+    a stricter gate than ``scan`` because it surfaces only fixable issues.
+  entry: pycomprepair repair . --dry-run
+  language: python
+  types: [python]
+  pass_filenames: false
+  require_serial: true
+
+- id: pycomprepair-discover
+  name: PyCompatRepair discover
+  description: >-
+    Validate imports and attribute accesses against the installed version of
+    the target package(s). Pass ``--package <name>`` via ``args`` (repeatable).
+  entry: pycomprepair discover .
+  language: python
+  types: [python]
+  pass_filenames: false
+  require_serial: true

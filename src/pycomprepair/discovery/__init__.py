@@ -20,11 +20,13 @@ from pycomprepair.discovery.api_index import (
     PackageNotInstalledError,
     load_api,
 )
+from pycomprepair.discovery.attr_check import scan_missing_attributes
 from pycomprepair.discovery.import_check import scan_missing_imports
 
 __all__ = [
     "APIIndex",
     "PackageNotInstalledError",
     "load_api",
+    "scan_missing_attributes",
     "scan_missing_imports",
 ]

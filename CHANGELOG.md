@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-19
+
+Major upgrade of the discovery layer plus first-class SARIF output and a
+shipped pre-commit hook.
+
+### Added
+
+- **`DSC002` — attribute access check (`discover` v2).** The `discover`
+  command now performs a two-pass analysis on every Python file: it
+  records top-level imports and shadowed names, then validates every
+  attribute chain rooted in a tracked import against the installed
+  API. Removed members like `numpy.float`, `django.utils.timezone.utc`
+  or `pandas.DataFrame.append` are caught even when no hand-written
+  plugin covers them. Analysis is intentionally conservative
+  (no false positives on shadowed names or chains that pass through a
+  function call) and stops walking as soon as it reaches a non-container
+  symbol whose surface is unknowable.
+- **SARIF 2.1.0 reporter.** `pycomprepair report ... --format sarif`
+  emits a conformant SARIF document with a deduplicated `rules` array,
+  per-result `level`/`message`/`locations`, optional `fixes` metadata,
+  and repo-relative `artifactLocation.uri`. The output can be uploaded
+  directly with `github/codeql-action/upload-sarif@v3` so PyCompatRepair
+  findings appear under **Security → Code scanning** on GitHub.
+- **`APIIndex.kinds` mapping + `is_container` / `kind_of` helpers.**
+  Symbols loaded via griffe now carry their griffe kind (`module`,
+  `class`, `function`, `attribute`, `alias`). This unlocks the attribute
+  walker — only modules and classes have a known public surface — and
+  is also useful for future plugins.
+- **`.pre-commit-hooks.yaml`** with three ready-to-use hooks
+  (`pycomprepair-scan`, `pycomprepair-repair-check`,
+  `pycomprepair-discover`) so consumers can wire PyCompatRepair into
+  pre-commit with three lines of YAML.
+
+### Changed
+
+- `discovery.__init__` re-exports the new `scan_missing_attributes`
+  helper next to `scan_missing_imports`.
+- The `discover` CLI command now runs both checks in a single pass and
+  reports their issues together.
+
 ## [0.1.1] — 2026-05-19
 
 Metadata-only release: refreshes the PyPI project page after the first

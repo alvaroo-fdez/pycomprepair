@@ -15,6 +15,7 @@ from pycomprepair.config import Config, load_config
 from pycomprepair.core.engine import RepairResult, repair_path, scan_path
 from pycomprepair.core.issue import Issue, Severity, is_actionable
 from pycomprepair.report.markdown import render_issues_markdown, render_repair_markdown
+from pycomprepair.report.sarif import render_issues_sarif
 
 app = typer.Typer(
     name="pycomprepair",
@@ -179,7 +180,7 @@ def report(
         typer.Option(
             "--format",
             "-f",
-            help="Output format. One of: markdown.",
+            help="Output format. One of: markdown, sarif.",
         ),
     ] = "markdown",
     output: Annotated[
@@ -192,14 +193,20 @@ def report(
     ] = False,
 ) -> None:
     """Render a report for CI artifacts or PR comments."""
-    if fmt != "markdown":
+    fmt_normalized = fmt.lower()
+    if fmt_normalized not in {"markdown", "sarif"}:
         err_console.print(f"[red]Unsupported format:[/red] {fmt}")
         raise typer.Exit(code=2)
 
     cfg = load_config(path)
     target = _resolve_target(target, cfg)
 
-    if include_diff:
+    if fmt_normalized == "sarif":
+        # SARIF is a flat list of issues -- diffs are out of scope for the
+        # format, so ``--with-diff`` is silently ignored here.
+        issues = scan_path(path, target, ignore_codes=cfg.ignore)
+        text = render_issues_sarif(issues, base_path=path if path.is_dir() else path.parent)
+    elif include_diff:
         results: list[RepairResult] = repair_path(
             path, target, dry_run=True, ignore_codes=cfg.ignore
         )
@@ -250,6 +257,7 @@ def discover(
         APIIndex,
         PackageNotInstalledError,
         load_api,
+        scan_missing_attributes,
         scan_missing_imports,
     )
 
@@ -267,6 +275,7 @@ def discover(
     for file in _iter_python_files(path):
         source = file.read_text(encoding="utf-8")
         issues.extend(scan_missing_imports(file, source, real_indexes))
+        issues.extend(scan_missing_attributes(file, source, real_indexes))
 
     _print_issue_table(issues)
     if issues:

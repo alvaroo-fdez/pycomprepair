@@ -102,8 +102,73 @@ pycomprepair discover ./src --package django
 ```
 
 Cada importación cuyo símbolo no figura en la API cargada genera un issue
-`DSC001`. Esto cubre renombrados y eliminaciones que aún no están reflejados
-en los plugins escritos a mano y sirve como red de seguridad genérica.
+`DSC001`. A partir de la 0.2.0, `discover` además realiza un análisis ligero
+de accesos a atributos (código `DSC002`) que detecta usos del tipo:
+
+```python
+import numpy as np
+x = arr.astype(np.float)              # DSC002: numpy.float fue eliminado
+
+import django
+ts = django.utils.timezone.utc        # DSC002: removido en Django 5.0
+```
+
+El análisis es conservador: ignora nombres reasignados, parámetros de
+función y cualquier cadena que pase por una función (su valor de retorno
+es opaco), de modo que el ruido en CI es muy bajo. Esto convierte a
+`discover` en un linter semántico de compatibilidad y no solo en un
+verificador de imports.
+
+## Salida SARIF para GitHub Code Scanning
+
+`pycomprepair report` puede emitir [SARIF 2.1.0][sarif] para integrarse de
+forma nativa con la pestaña **Security → Code scanning** de GitHub:
+
+```bash
+pycomprepair report ./src --target "django>=5.0,<5.1" \
+  --format sarif --output pycomprepair.sarif
+```
+
+En el workflow:
+
+```yaml
+- run: pycomprepair report ./src --target "django>=5.0" --format sarif --output pcr.sarif
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: pcr.sarif
+    category: pycomprepair
+```
+
+Cada regla aparece deduplicada en `tool.driver.rules` con su severidad por
+defecto y cada issue se sube como un *result* con `physicalLocation` que
+apunta al fichero (ruta relativa al directorio escaneado) y la línea/columna
+exacta.
+
+[sarif]: https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/sarif-v2.1.0-os.html
+
+## Pre-commit
+
+PyCompatRepair publica `pre-commit-hooks.yaml`, así que basta con añadirlo a
+tu `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/alvaroo-fdez/pycomprepair
+    rev: v0.2.0
+    hooks:
+      - id: pycomprepair-scan
+      # Opcionalmente, valida también contra la API instalada:
+      - id: pycomprepair-discover
+        args: ["--package", "django"]
+```
+
+Hooks disponibles:
+
+| Hook                         | Equivalente CLI                       |
+| ---------------------------- | ------------------------------------- |
+| `pycomprepair-scan`          | `pycomprepair scan .`                 |
+| `pycomprepair-repair-check`  | `pycomprepair repair . --dry-run`     |
+| `pycomprepair-discover`      | `pycomprepair discover .` (+ paquetes) |
 
 ## Úsalo como GitHub Action
 
