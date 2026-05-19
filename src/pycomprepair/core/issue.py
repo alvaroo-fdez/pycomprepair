@@ -71,3 +71,23 @@ class Issue:
     def location(self) -> str:
         """Render as ``path:line:column`` for CLI output."""
         return f"{self.file}:{self.line}:{self.column}"
+
+
+def is_actionable(
+    issue: Issue, *, min_confidence: float = 0.0, unsafe_fixes: bool = False
+) -> bool:
+    """Return ``True`` when ``issue`` should be auto-fixed under the given gates.
+
+    Detection-only issues (``fix is None``) are never actionable: they exist
+    purely to inform the user. For issues that *do* carry a :class:`Fix`,
+    the gate is:
+
+    * the fix must be ``safe`` (or ``unsafe_fixes=True`` must override that), and
+    * ``fix.confidence`` must be ``>= min_confidence``.
+    """
+    fix = issue.fix
+    if fix is None:
+        return False
+    if not fix.safe and not unsafe_fixes:
+        return False
+    return fix.confidence >= min_confidence

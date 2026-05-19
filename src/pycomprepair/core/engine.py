@@ -21,7 +21,7 @@ from pathlib import Path
 import libcst as cst
 from packaging.requirements import Requirement
 
-from pycomprepair.core.issue import Issue
+from pycomprepair.core.issue import Issue, is_actionable
 from pycomprepair.core.plugin import PluginContext, PluginRegistry, get_registry
 
 
@@ -109,12 +109,19 @@ def repair_path(
     dry_run: bool = True,
     registry: PluginRegistry | None = None,
     options: dict[str, str] | None = None,
+    min_confidence: float = 0.0,
+    unsafe_fixes: bool = False,
 ) -> list[RepairResult]:
     """Scan and (optionally) apply codemods.
 
     When ``dry_run`` is true, source files are not written; the returned
     :class:`RepairResult` objects still expose the proposed new source so
     callers can render diffs.
+
+    The ``min_confidence`` and ``unsafe_fixes`` gates control which issues
+    are passed to each plugin's :meth:`Plugin.repair`. Issues that do not
+    pass the gate still appear in :attr:`RepairResult.issues` so the report
+    remains complete; they are simply not auto-fixed.
     """
     req = _coerce_requirement(target)
     reg = registry or get_registry()
@@ -147,7 +154,18 @@ def repair_path(
             all_issues.extend(issues)
             if not issues:
                 continue
-            transformed = plugin.repair(ctx, issues)
+            # Gate: only the actionable subset is passed to the plugin so it
+            # never auto-applies a fix the user explicitly excluded.
+            actionable = [
+                i
+                for i in issues
+                if is_actionable(
+                    i, min_confidence=min_confidence, unsafe_fixes=unsafe_fixes
+                )
+            ]
+            if not actionable:
+                continue
+            transformed = plugin.repair(ctx, actionable)
             if transformed is not current_module:
                 current_module = transformed
                 current_source = transformed.code

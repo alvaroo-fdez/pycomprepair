@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`--min-confidence` / `--unsafe-fixes` flags** on `pycomprepair repair`:
+  filter which fixes are auto-applied without hiding detection from the
+  report. Each issue's `Fix` already exposes `confidence` and `safe`; the
+  new `is_actionable()` helper centralizes the gate and is also plumbed
+  through `repair_path()` for programmatic users. The CLI summary now
+  prints how many issues are actionable under the active gates.
 - **SQLAlchemy 1.4 → 2.0 plugin** (`pycomprepair.plugins.sqlalchemy_v2`):
   - `SQL001` — auto-fix `from sqlalchemy.ext.declarative import declarative_base`
     to `from sqlalchemy.orm import declarative_base` (single-name imports only;

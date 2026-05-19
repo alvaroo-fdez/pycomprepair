@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from pycomprepair.core.engine import RepairResult, repair_path, scan_path
-from pycomprepair.core.issue import Issue, Severity
+from pycomprepair.core.issue import Issue, Severity, is_actionable
 from pycomprepair.report.markdown import render_issues_markdown, render_repair_markdown
 
 app = typer.Typer(
@@ -93,22 +93,55 @@ def repair(
         bool,
         typer.Option("--diff/--no-diff", help="Print a unified diff for each changed file."),
     ] = True,
+    min_confidence: Annotated[
+        float,
+        typer.Option(
+            "--min-confidence",
+            help=(
+                "Only apply fixes whose confidence is >= this value (0.0-1.0). "
+                "Issues below the threshold are still reported."
+            ),
+            min=0.0,
+            max=1.0,
+        ),
+    ] = 0.0,
+    unsafe_fixes: Annotated[
+        bool,
+        typer.Option(
+            "--unsafe-fixes/--safe-fixes-only",
+            help="Also apply fixes marked as unsafe (e.g. ambiguous receivers).",
+        ),
+    ] = False,
 ) -> None:
     """Apply codemods (dry-run by default; pass ``--write`` to persist)."""
-    results = repair_path(path, target, dry_run=dry_run)
+    results = repair_path(
+        path,
+        target,
+        dry_run=dry_run,
+        min_confidence=min_confidence,
+        unsafe_fixes=unsafe_fixes,
+    )
     changed = [r for r in results if r.changed]
 
-    _print_issue_table([i for r in results for i in r.issues])
+    all_issues = [i for r in results for i in r.issues]
+    _print_issue_table(all_issues)
 
     if show_diff and changed:
         for r in changed:
             _print_diff(r)
 
+    actionable = sum(
+        1
+        for i in all_issues
+        if is_actionable(i, min_confidence=min_confidence, unsafe_fixes=unsafe_fixes)
+    )
     mode = "dry-run" if dry_run else "applied"
     console.print(
         f"[bold]{mode}[/bold]: "
         f"{len(changed)} file(s) would change, "
-        f"{sum(len(r.issues) for r in results)} issue(s) detected."
+        f"{len(all_issues)} issue(s) detected, "
+        f"{actionable} actionable under current gates "
+        f"(min-confidence={min_confidence}, unsafe-fixes={unsafe_fixes})."
     )
     if changed and dry_run:
         raise typer.Exit(code=1)
