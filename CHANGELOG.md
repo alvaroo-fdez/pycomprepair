@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-05-20
+
+This release focuses on making `discover` more useful for libraries that
+do not have a hand-written plugin yet: it ships 18 new safe `KNOWN_FIXES`
+entries and a fuzzy matcher that suggests the closest sibling symbol
+when the installed API no longer contains the one referenced by your
+code.
+
+### Added
+
+- **`KNOWN_FIXES` expansion** — 18 new same-module renames are now
+  auto-fixable by `discover --fix`:
+  - NumPy 2.0 (11): `in1d` → `isin`, `trapz` → `trapezoid`,
+    `row_stack` → `vstack`, `string_` → `bytes_`, `unicode_` →
+    `str_`, `float_` → `float64`, `complex_` → `complex128`,
+    `longfloat` → `longdouble`, `singlecomplex` → `complex64`,
+    `cfloat` → `complex128`, `clongfloat` → `clongdouble`.
+  - Django 4.0/5.0 (7): `smart_text` → `smart_str`, `force_text`
+    → `force_str`, `ugettext*` → `gettext*`, `ungettext*` →
+    `ngettext*`.
+  - SQLAlchemy 2.0 (2): `orm.relation` → `orm.relationship`,
+    `orm.eagerload` → `orm.joinedload`.
+  All new entries use `RENAME_ATTR` mode (same package, semantics
+  preserved) and are therefore applied by default, no `--unsafe-fixes`
+  required.
+- **`discover --suggest`** — fuzzy-match DSC002 hits that are not in
+  `KNOWN_FIXES` against sibling symbols in the installed API and
+  attach the best match as an advisory `Did you mean ...?` note. The
+  matcher is strictly opt-in, considers only direct siblings of the
+  removed symbol's parent module (to keep signal/noise high), and the
+  attached `Fix` is always marked `safe=False` so `discover --fix`
+  never applies a fuzzy guess automatically.
+- **Public API** — `pycomprepair.discovery` now exports `Suggestion`
+  and `suggest_replacements` for third-party plugins that want to
+  surface the same advisory in their own reports.
+
 ## [1.0.0] — 2026-05-21
 
 PyCompatRepair reaches 1.0 with safety controls, the DSC002 auto-fix

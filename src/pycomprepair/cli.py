@@ -312,6 +312,17 @@ def discover(
             ),
         ),
     ] = False,
+    suggest: Annotated[
+        bool,
+        typer.Option(
+            "--suggest/--no-suggest",
+            help=(
+                "For DSC002 hits without a hand-written fix, attach the "
+                "closest sibling symbol from the installed API as an "
+                "advisory `Did you mean ...?` note. Never auto-applied."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Flag imports that point to symbols missing from the installed package.
 
@@ -348,7 +359,9 @@ def discover(
     for file in _iter_python_files(path):
         source = file.read_text(encoding="utf-8")
         issues.extend(scan_missing_imports(file, source, real_indexes))
-        issues.extend(scan_missing_attributes(file, source, real_indexes))
+        issues.extend(
+            scan_missing_attributes(file, source, real_indexes, suggest=suggest)
+        )
 
     _print_issue_table(issues)
 

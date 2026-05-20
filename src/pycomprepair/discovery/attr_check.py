@@ -38,6 +38,7 @@ from libcst.metadata import CodeRange, MetadataWrapper, PositionProvider
 from pycomprepair.core.issue import Fix, Issue, Severity
 from pycomprepair.discovery.api_index import APIIndex
 from pycomprepair.discovery.known_fixes import KNOWN_FIXES
+from pycomprepair.discovery.suggest import suggest_replacements
 
 DSC002 = "DSC002"
 """Attribute access targets a symbol that no longer exists in the installed package."""
@@ -160,12 +161,14 @@ class _AttrVisitor(cst.CSTVisitor):
         imports: dict[str, str],
         shadowed: set[str],
         file: Path,
+        suggest: bool = False,
     ) -> None:
         super().__init__()
         self._indexes = indexes
         self._imports = imports
         self._shadowed = shadowed
         self._file = file
+        self._suggest = suggest
         self._processed: set[int] = set()
         self.issues: list[Issue] = []
 
@@ -219,15 +222,34 @@ class _AttrVisitor(cst.CSTVisitor):
             if not index.has(next_path):
                 line, col = self._pos(node)
                 known = KNOWN_FIXES.get(next_path)
-                fix = (
-                    Fix(
+                fix: Fix | None
+                if known is not None:
+                    fix = Fix(
                         description=known.description,
                         confidence=known.confidence,
                         safe=known.safe,
                     )
-                    if known is not None
-                    else None
-                )
+                elif self._suggest:
+                    matches = suggest_replacements(next_path, index)
+                    if matches:
+                        top = matches[0]
+                        # Fuzzy guesses are never applied automatically: they
+                        # exist to point the developer at the most likely new
+                        # name. ``safe=False`` keeps ``discover --fix`` from
+                        # ever rewriting them, while the confidence carries
+                        # the underlying similarity ratio.
+                        fix = Fix(
+                            description=(
+                                f"Did you mean `{top.path}`? "
+                                f"(similarity {top.score:.2f})"
+                            ),
+                            confidence=top.score,
+                            safe=False,
+                        )
+                    else:
+                        fix = None
+                else:
+                    fix = None
                 self.issues.append(
                     Issue(
                         plugin="discover",
@@ -253,6 +275,8 @@ def scan_missing_attributes(
     file: Path,
     source: str,
     indexes: dict[str, APIIndex],
+    *,
+    suggest: bool = False,
 ) -> list[Issue]:
     """Return :class:`Issue` objects for attribute chains that target removed symbols.
 
@@ -267,6 +291,12 @@ def scan_missing_attributes(
         Mapping of *root package name* to its :class:`APIIndex`. Only
         attribute chains whose leftmost binding belongs to a listed package
         are validated.
+    suggest:
+        When ``True``, attach a fuzzy-match suggestion (``Did you mean ...``)
+        to issues that are not covered by
+        :data:`pycomprepair.discovery.known_fixes.KNOWN_FIXES`. Suggestions
+        are always marked ``safe=False`` so ``discover --fix`` never auto-
+        applies them.
     """
     if not indexes:
         return []
@@ -281,6 +311,8 @@ def scan_missing_attributes(
         return []
 
     wrapper = MetadataWrapper(module)
-    visitor = _AttrVisitor(indexes, collector.imports, collector.shadowed, file)
+    visitor = _AttrVisitor(
+        indexes, collector.imports, collector.shadowed, file, suggest=suggest
+    )
     wrapper.visit(visitor)
     return visitor.issues

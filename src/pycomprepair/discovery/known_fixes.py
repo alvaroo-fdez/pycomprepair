@@ -92,6 +92,29 @@ KNOWN_FIXES: dict[str, KnownFix] = {
     "numpy.alltrue": KnownFix(RENAME_ATTR, "all", "Renamed to `all` in 2.0."),
     "numpy.sometrue": KnownFix(RENAME_ATTR, "any", "Renamed to `any` in 2.0."),
     "numpy.round_": KnownFix(RENAME_ATTR, "round", "Renamed to `round` in 2.0."),
+    # Function renames added in v1.1.0 (still same package, safe).
+    "numpy.in1d": KnownFix(RENAME_ATTR, "isin", "Renamed to `isin` in 2.0."),
+    "numpy.trapz": KnownFix(RENAME_ATTR, "trapezoid", "Renamed to `trapezoid` in 2.0."),
+    "numpy.row_stack": KnownFix(RENAME_ATTR, "vstack", "Renamed to `vstack` in 2.0."),
+    # Scalar type aliases removed in 2.0 with same-package replacements.
+    "numpy.string_": KnownFix(RENAME_ATTR, "bytes_", "Renamed to `bytes_` in 2.0."),
+    "numpy.unicode_": KnownFix(RENAME_ATTR, "str_", "Renamed to `str_` in 2.0."),
+    "numpy.float_": KnownFix(RENAME_ATTR, "float64", "Use `float64` (alias removed in 2.0)."),
+    "numpy.complex_": KnownFix(
+        RENAME_ATTR, "complex128", "Use `complex128` (alias removed in 2.0)."
+    ),
+    "numpy.longfloat": KnownFix(
+        RENAME_ATTR, "longdouble", "Renamed to `longdouble` in 2.0."
+    ),
+    "numpy.singlecomplex": KnownFix(
+        RENAME_ATTR, "complex64", "Renamed to `complex64` in 2.0."
+    ),
+    "numpy.cfloat": KnownFix(
+        RENAME_ATTR, "complex128", "Renamed to `complex128` in 2.0."
+    ),
+    "numpy.clongfloat": KnownFix(
+        RENAME_ATTR, "clongdouble", "Renamed to `clongdouble` in 2.0."
+    ),
     # ------------------------------------------------------------------
     # Django 5.0 removals.
     # ------------------------------------------------------------------
@@ -103,6 +126,37 @@ KNOWN_FIXES: dict[str, KnownFix] = {
         "Use `datetime.timezone.utc` (may require `import datetime`).",
         safe=False,
         confidence=0.7,
+    ),
+    # Same-module renames removed in Django 4.0 / 5.0 (safe rewrites).
+    "django.utils.encoding.smart_text": KnownFix(
+        RENAME_ATTR, "smart_str", "Renamed to `smart_str` (removed in Django 4.0)."
+    ),
+    "django.utils.encoding.force_text": KnownFix(
+        RENAME_ATTR, "force_str", "Renamed to `force_str` (removed in Django 4.0)."
+    ),
+    "django.utils.translation.ugettext": KnownFix(
+        RENAME_ATTR, "gettext", "Renamed to `gettext` (removed in Django 4.0)."
+    ),
+    "django.utils.translation.ugettext_lazy": KnownFix(
+        RENAME_ATTR, "gettext_lazy", "Renamed to `gettext_lazy` (removed in Django 4.0)."
+    ),
+    "django.utils.translation.ugettext_noop": KnownFix(
+        RENAME_ATTR, "gettext_noop", "Renamed to `gettext_noop` (removed in Django 4.0)."
+    ),
+    "django.utils.translation.ungettext": KnownFix(
+        RENAME_ATTR, "ngettext", "Renamed to `ngettext` (removed in Django 4.0)."
+    ),
+    "django.utils.translation.ungettext_lazy": KnownFix(
+        RENAME_ATTR, "ngettext_lazy", "Renamed to `ngettext_lazy` (removed in Django 4.0)."
+    ),
+    # ------------------------------------------------------------------
+    # SQLAlchemy 2.0 removals (same-module renames, safe).
+    # ------------------------------------------------------------------
+    "sqlalchemy.orm.relation": KnownFix(
+        RENAME_ATTR, "relationship", "Renamed to `relationship` in SQLAlchemy 2.0."
+    ),
+    "sqlalchemy.orm.eagerload": KnownFix(
+        RENAME_ATTR, "joinedload", "Renamed to `joinedload` in SQLAlchemy 2.0."
     ),
 }
 

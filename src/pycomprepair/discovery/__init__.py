@@ -24,6 +24,7 @@ from pycomprepair.discovery.attr_check import scan_missing_attributes
 from pycomprepair.discovery.fix import FixResult, rewrite_file, rewrite_source
 from pycomprepair.discovery.import_check import scan_missing_imports
 from pycomprepair.discovery.known_fixes import KNOWN_FIXES, KnownFix
+from pycomprepair.discovery.suggest import Suggestion, suggest_replacements
 
 __all__ = [
     "KNOWN_FIXES",
@@ -31,9 +32,11 @@ __all__ = [
     "FixResult",
     "KnownFix",
     "PackageNotInstalledError",
+    "Suggestion",
     "load_api",
     "rewrite_file",
     "rewrite_source",
     "scan_missing_attributes",
     "scan_missing_imports",
+    "suggest_replacements",
 ]
