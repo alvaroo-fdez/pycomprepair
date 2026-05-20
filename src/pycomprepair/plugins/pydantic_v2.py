@@ -21,7 +21,7 @@ the CLI.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -164,7 +164,7 @@ class _PydanticScanVisitor(cst.CSTVisitor):
 
     METADATA_DEPENDENCIES = (PositionProvider,)
 
-    def __init__(self, positions: dict[cst.CSTNode, object], file: Path) -> None:
+    def __init__(self, positions: Mapping[cst.CSTNode, object], file: Path) -> None:
         super().__init__()
         self._positions = positions
         self._file = file
@@ -316,6 +316,10 @@ class _PydanticTransformer(cst.CSTTransformer):
         new_body_items: list[cst.BaseStatement] = []
         changed = False
         for stmt in updated_node.body.body:
+            if not isinstance(stmt, cst.BaseStatement):
+                # Defensive: an IndentedBlock body should only contain
+                # BaseStatement, but the libcst type system is wider.
+                continue
             replacement = self._maybe_rewrite_config_class(stmt)
             if replacement is None:
                 new_body_items.append(stmt)
@@ -504,7 +508,7 @@ def _ensure_pydantic_import(module: cst.Module, name: str) -> cst.Module:
     )
 
     # Insert after the last existing import to keep style consistent.
-    new_body: list[cst.BaseStatement] = list(module.body)
+    new_body: list[cst.SimpleStatementLine | cst.BaseCompoundStatement] = list(module.body)
     insert_at = 0
     for idx, stmt in enumerate(new_body):
         if isinstance(stmt, cst.SimpleStatementLine) and any(
@@ -525,7 +529,7 @@ def _dotted(node: cst.BaseExpression | None) -> str:
     return ""
 
 
-def _pos(positions: dict[cst.CSTNode, object], node: cst.CSTNode) -> tuple[int, int]:
+def _pos(positions: Mapping[cst.CSTNode, object], node: cst.CSTNode) -> tuple[int, int]:
     p = positions.get(node)
     if p is None:
         return (1, 0)

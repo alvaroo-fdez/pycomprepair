@@ -16,6 +16,7 @@ surface; functions can return anything at runtime.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
@@ -166,7 +167,22 @@ def load_api(package: str) -> APIIndex:
     test runs) only pay the parsing cost once. ``allow_inspection=True``
     lets griffe fall back to runtime introspection for C extensions and
     other modules it cannot parse statically.
+
+    A disk cache (see :mod:`pycomprepair.discovery.cache`) is consulted
+    before delegating to griffe. The cache key is ``(package, installed
+    version)``, so an upgrade automatically invalidates the snapshot. Set
+    ``PYCOMPREPAIR_DISABLE_CACHE=1`` in the environment to bypass it.
     """
+    # Late import to avoid a circular dependency on package load.
+    from pycomprepair.discovery import cache as _cache
+
+    use_cache = os.environ.get("PYCOMPREPAIR_DISABLE_CACHE", "") not in {"1", "true", "yes"}
+
+    if use_cache:
+        cached = _cache.read_cached(package)
+        if cached is not None:
+            return cached
+
     try:
         import griffe
     except ImportError as exc:  # pragma: no cover - griffe is a hard dep
@@ -182,4 +198,9 @@ def load_api(package: str) -> APIIndex:
         ) from exc
 
     symbols, kinds = _collect(module)
-    return APIIndex(package=package, symbols=symbols, kinds=kinds)
+    index = APIIndex(package=package, symbols=symbols, kinds=kinds)
+
+    if use_cache:
+        _cache.write_cached(index)
+
+    return index

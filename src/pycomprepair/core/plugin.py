@@ -18,7 +18,7 @@ import sys
 from dataclasses import dataclass, field
 from importlib import metadata
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import libcst as cst
 from packaging.requirements import Requirement
@@ -125,7 +125,9 @@ def _iter_entry_points(group: str) -> list[metadata.EntryPoint]:
     try:
         eps = metadata.entry_points(group=group)
     except TypeError:  # pragma: no cover - very old Python
-        eps = metadata.entry_points().get(group, [])  # type: ignore[attr-defined]
+        # Pre-3.10 returned a SelectableGroups-like dict; fall back to ``get``.
+        legacy: Any = metadata.entry_points()
+        eps = legacy.get(group, [])
     return list(eps)
 
 

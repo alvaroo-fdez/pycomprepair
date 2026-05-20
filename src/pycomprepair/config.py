@@ -106,7 +106,7 @@ def _read_table(path: Path) -> dict[str, Any]:
         tool = data.get("tool", {})
         section = tool.get("pycomprepair", {})
         return section if isinstance(section, dict) else {}
-    return data
+    return dict(data)
 
 
 def _build_config(data: dict[str, Any], source: Path) -> Config:

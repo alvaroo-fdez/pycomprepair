@@ -3,7 +3,7 @@ description: >-
   Run PyCompatRepair to detect (and optionally repair) cross-version Python
   dependency incompatibilities. Posts a Markdown report to the GitHub Step
   Summary and, optionally, to the originating pull request.
-author: PyCompatRepair contributors
+author: Álvaro Fernández
 branding:
   icon: refresh-cw
   color: blue

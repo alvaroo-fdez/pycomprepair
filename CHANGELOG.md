@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-05-21
+
+PyCompatRepair reaches 1.0 with safety controls, the DSC002 auto-fix
+pipeline, a pandas plugin, on-disk griffe caching, an `init` wizard, a
+public Plugin SDK documentation, and an optional LSP server.
+
+### Added
+
+- **Safety levels**. `pycomprepair repair` now accepts `--safe-only`,
+  a convenience alias that always wins over project configuration. The
+  repair summary surfaces the number of fixes skipped because they were
+  marked unsafe or fell below the configured confidence threshold so
+  users can re-run with the relevant gates lifted.
+- **DSC002 auto-fix**. `pycomprepair discover --fix` rewrites the
+  attribute-access incompatibilities surfaced by `DSC002` using the
+  shared `KNOWN_FIXES` registry. Two rewrite strategies are supported:
+  `RENAME_ATTR` swaps just the final attribute (preserving the user's
+  alias) and `REPLACE_EXPRESSION` substitutes the whole dotted chain
+  (used for cross-package rewrites such as
+  `django.utils.timezone.utc` -> `datetime.timezone.utc`). Unsafe
+  rewrites require `--unsafe-fixes`; `--dry-run` is the default.
+- **Pandas 2.x plugin** (`pycomprepair.plugins.pandas_v2`). Ships three
+  codes: `PDS001` (detect-only) for removed `DataFrame.append` /
+  `Series.append` calls; `PDS002` for the safe `.iteritems()` ->
+  `.items()` rename; `PDS003` (detect-only) for removed `pd.np` access.
+- **Griffe cache**. Discovery snapshots are persisted under
+  `~/.cache/pycomprepair/<package>-<version>.json` and reused
+  transparently on subsequent runs. Cache directory is configurable via
+  `PYCOMPREPAIR_CACHE_DIR` and can be disabled with
+  `PYCOMPREPAIR_DISABLE_CACHE=1`. Two new CLI commands manage it:
+  `pycomprepair cache path` and `pycomprepair cache clear`.
+- **`pycomprepair init` wizard**. Detects installed distributions, maps
+  them to known plugin targets, and writes a `pycomprepair.toml`
+  prepopulated with the detected target requirements. Use
+  `--non-interactive` for CI scenarios and `--target` to pin manually.
+- **Plugin SDK documentation** (`docs/plugins.md`). End-to-end cookbook
+  with a worked example, entry-point registration, testing harness and
+  optional `KNOWN_FIXES` integration so third-party plugins can plug
+  into `discover --fix`.
+- **LSP server** (`pycomprepair-lsp`). Optional, gated behind the
+  `pycomprepair[lsp]` extra. Implements `textDocument/didOpen`,
+  `didSave` and `didChange`, publishing detected incompatibilities as
+  LSP diagnostics with the issue code as the `Diagnostic.code` so
+  editors can link to documentation. Compatible with pygls 1.x and 2.x.
+
+### Changed
+
+- `pycomprepair discover` gained `--fix / --no-fix`,
+  `--dry-run / --write` and `--unsafe-fixes / --safe-only` flags.
+- Built-in plugin registry now includes the `pandas` plugin alongside
+  `pydantic`, `fastapi`, `sqlalchemy`, `django` and `numpy`.
+- `action.yml` author updated to "Álvaro Fernández".
+
 ## [0.3.0] — 2026-05-20
 
 ### Added

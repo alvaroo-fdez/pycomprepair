@@ -14,6 +14,7 @@ added next to ``_RULES`` without touching the engine.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -55,7 +56,7 @@ class _FastAPIPlugin:
 class _FastAPIScanVisitor(cst.CSTVisitor):
     METADATA_DEPENDENCIES = (PositionProvider,)
 
-    def __init__(self, positions: dict[cst.CSTNode, object], file: Path) -> None:
+    def __init__(self, positions: Mapping[cst.CSTNode, object], file: Path) -> None:
         super().__init__()
         self._positions = positions
         self._file = file
@@ -73,7 +74,9 @@ class _FastAPIScanVisitor(cst.CSTVisitor):
         for arg in target.args:
             if arg.keyword is None:
                 if isinstance(arg.value, cst.SimpleString):
-                    event_name = arg.value.evaluated_value
+                    value = arg.value.evaluated_value
+                    if isinstance(value, str):
+                        event_name = value
                 break
         if event_name not in {"startup", "shutdown"}:
             return
@@ -100,7 +103,7 @@ class _FastAPIScanVisitor(cst.CSTVisitor):
         )
 
 
-def _pos(positions: dict[cst.CSTNode, object], node: cst.CSTNode) -> tuple[int, int]:
+def _pos(positions: Mapping[cst.CSTNode, object], node: cst.CSTNode) -> tuple[int, int]:
     p = positions.get(node)
     if p is None:
         return (1, 0)

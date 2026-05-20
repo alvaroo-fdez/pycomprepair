@@ -6,6 +6,7 @@ from pycomprepair.core.plugin import PluginRegistry, reset_registry
 from pycomprepair.plugins.django_v5 import plugin as django_plugin
 from pycomprepair.plugins.fastapi_migration import plugin as fastapi_plugin
 from pycomprepair.plugins.numpy_v2 import plugin as numpy_plugin
+from pycomprepair.plugins.pandas_v2 import plugin as pandas_plugin
 from pycomprepair.plugins.pydantic_v2 import plugin as pydantic_plugin
 from pycomprepair.plugins.sqlalchemy_v2 import plugin as sqlalchemy_plugin
 
@@ -33,6 +34,7 @@ def registry() -> PluginRegistry:
     reg.register(sqlalchemy_plugin)
     reg.register(django_plugin)
     reg.register(numpy_plugin)
+    reg.register(pandas_plugin)
     return reg
 
 

@@ -21,12 +21,19 @@ from pycomprepair.discovery.api_index import (
     load_api,
 )
 from pycomprepair.discovery.attr_check import scan_missing_attributes
+from pycomprepair.discovery.fix import FixResult, rewrite_file, rewrite_source
 from pycomprepair.discovery.import_check import scan_missing_imports
+from pycomprepair.discovery.known_fixes import KNOWN_FIXES, KnownFix
 
 __all__ = [
+    "KNOWN_FIXES",
     "APIIndex",
+    "FixResult",
+    "KnownFix",
     "PackageNotInstalledError",
     "load_api",
+    "rewrite_file",
+    "rewrite_source",
     "scan_missing_attributes",
     "scan_missing_imports",
 ]

@@ -119,8 +119,26 @@ def repair(
             "Falls back to the project config when omitted.",
         ),
     ] = None,
+    safe_only: Annotated[
+        bool,
+        typer.Option(
+            "--safe-only/--no-safe-only",
+            help=(
+                "Convenience alias for --safe-fixes-only. When passed, it "
+                "forces safe-only behaviour even if the config opts into "
+                "unsafe fixes."
+            ),
+        ),
+    ] = False,
 ) -> None:
-    """Apply codemods (dry-run by default; pass ``--write`` to persist)."""
+    """Apply codemods (dry-run by default; pass ``--write`` to persist).
+
+    Safety defaults: only fixes flagged ``safe=True`` are applied. Pass
+    ``--unsafe-fixes`` (or set ``unsafe_fixes = true`` in
+    ``pycomprepair.toml``) to opt into cross-package or otherwise risky
+    rewrites; ``--safe-only`` re-enables the conservative default even when
+    the config opts in.
+    """
     cfg = load_config(path)
     target = _resolve_target(target, cfg)
     effective_min_confidence = (
@@ -129,6 +147,10 @@ def repair(
     effective_unsafe_fixes = (
         cfg.unsafe_fixes if unsafe_fixes is None else unsafe_fixes
     )
+    if safe_only:
+        # The convenience flag always wins so users can override a permissive
+        # project config from the command line.
+        effective_unsafe_fixes = False
 
     results = repair_path(
         path,
@@ -156,6 +178,18 @@ def repair(
             unsafe_fixes=effective_unsafe_fixes,
         )
     )
+    skipped_unsafe = sum(
+        1
+        for i in all_issues
+        if i.fix is not None and not i.fix.safe and not effective_unsafe_fixes
+    )
+    skipped_low_confidence = sum(
+        1
+        for i in all_issues
+        if i.fix is not None
+        and i.fix.safe
+        and i.fix.confidence < effective_min_confidence
+    )
     mode = "dry-run" if dry_run else "applied"
     console.print(
         f"[bold]{mode}[/bold]: "
@@ -164,6 +198,12 @@ def repair(
         f"{actionable} actionable under current gates "
         f"(min-confidence={effective_min_confidence}, unsafe-fixes={effective_unsafe_fixes})."
     )
+    if skipped_unsafe or skipped_low_confidence:
+        console.print(
+            f"  [yellow]skipped:[/yellow] {skipped_unsafe} unsafe fix(es), "
+            f"{skipped_low_confidence} below confidence threshold. "
+            "Re-run with --unsafe-fixes or --min-confidence to include them."
+        )
     if changed and dry_run:
         raise typer.Exit(code=1)
 
@@ -244,6 +284,34 @@ def discover(
             "The locally installed version is read via griffe.",
         ),
     ],
+    fix: Annotated[
+        bool,
+        typer.Option(
+            "--fix/--no-fix",
+            help=(
+                "Apply known DSC002 replacements in place (np.float -> float, "
+                "np.NaN -> np.nan, ...). Pairs with --dry-run to preview."
+            ),
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run/--write",
+            help="When combined with --fix, show diffs without modifying files.",
+        ),
+    ] = True,
+    unsafe_fixes: Annotated[
+        bool,
+        typer.Option(
+            "--unsafe-fixes/--safe-only",
+            help=(
+                "Also apply cross-package DSC002 rewrites that may require "
+                "an extra import (e.g. django.utils.timezone.utc -> "
+                "datetime.timezone.utc). Off by default."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Flag imports that point to symbols missing from the installed package.
 
@@ -252,11 +320,16 @@ def discover(
     whose ``pkg.X`` is no longer present in the loaded API is reported as a
     ``DSC001`` issue, which usually signals a rename or removal that the
     hand-written plugins do not yet cover.
+
+    With ``--fix``, known removals listed in
+    :mod:`pycomprepair.discovery.known_fixes` are rewritten in place using
+    libcst. Shadowed names and unrelated references are left alone.
     """
     from pycomprepair.discovery import (
         APIIndex,
         PackageNotInstalledError,
         load_api,
+        rewrite_file,
         scan_missing_attributes,
         scan_missing_imports,
     )
@@ -278,8 +351,167 @@ def discover(
         issues.extend(scan_missing_attributes(file, source, real_indexes))
 
     _print_issue_table(issues)
-    if issues:
+
+    applied_total = 0
+    changed_files = 0
+    if fix:
+        for file in _iter_python_files(path):
+            result = rewrite_file(file, allow_unsafe=unsafe_fixes)
+            if result.changed:
+                changed_files += 1
+                applied_total += result.applied
+                if not dry_run:
+                    file.write_text(result.new_source, encoding="utf-8")
+                _print_fix_diff(result.file, result.original_source, result.new_source)
+        mode = "would change" if dry_run else "rewrote"
+        console.print(
+            f"\n[bold]fix:[/bold] {mode} {changed_files} file(s) "
+            f"({applied_total} replacement(s); "
+            f"unsafe-fixes={'on' if unsafe_fixes else 'off'})"
+        )
+
+    if issues and not (fix and not dry_run and applied_total > 0):
+        # In write+fix mode where every issue had a known fix we exit 0;
+        # otherwise the presence of issues fails the run.
+        unresolved = [
+            i for i in issues if i.code != "DSC002" or i.fix is None or not i.fix.safe
+        ]
+        if unresolved or not fix:
+            raise typer.Exit(code=1)
+
+
+@app.command()
+def init(
+    path: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            readable=True,
+            resolve_path=True,
+            help="Project root that will receive the pycomprepair.toml.",
+        ),
+    ] = Path("."),
+    target: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--target",
+            "-t",
+            help=(
+                "Pin a target manually (repeatable). When omitted, the wizard "
+                "inspects installed distributions and proposes targets for "
+                "every package that has a known plugin."
+            ),
+        ),
+    ] = None,
+    non_interactive: Annotated[
+        bool,
+        typer.Option(
+            "--non-interactive",
+            help="Skip prompts and write whatever the auto-detect produces.",
+        ),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Overwrite an existing pycomprepair.toml.",
+        ),
+    ] = False,
+) -> None:
+    """Create a ``pycomprepair.toml`` for the project.
+
+    The wizard cross-references the project's installed distributions with
+    the set of packages PyCompatRepair has plugins for, and suggests a
+    target requirement for each match (e.g. ``numpy>=2.0`` if ``numpy`` is
+    installed). The user confirms each suggestion before it is written.
+    """
+    from importlib import metadata as _metadata
+
+    config_path = path / "pycomprepair.toml"
+    if config_path.exists() and not force:
+        err_console.print(
+            f"[red]error[/red]: {config_path} already exists. "
+            "Re-run with --force to overwrite."
+        )
+        raise typer.Exit(code=2)
+
+    # Build the candidate set of (dist, plugin-suggested target version).
+    suggestions: list[tuple[str, str]] = []
+    if target:
+        for raw in target:
+            suggestions.append((raw.split("[")[0].split(">")[0].split("=")[0].strip(), raw))
+    else:
+        # Map each plugin's `targets` tuple to a "ge next-major" recommendation.
+        plugin_targets: dict[str, str] = {
+            "pydantic": ">=2.0",
+            "fastapi": ">=0.100",
+            "sqlalchemy": ">=2.0",
+            "django": ">=5.0",
+            "numpy": ">=2.0",
+            "pandas": ">=2.0",
+        }
+        for dist_name, spec in plugin_targets.items():
+            try:
+                _metadata.version(dist_name)
+            except _metadata.PackageNotFoundError:
+                continue
+            except Exception:
+                continue
+            suggestions.append((dist_name, f"{dist_name}{spec}"))
+
+    if not suggestions:
+        console.print(
+            "[yellow]No supported packages detected.[/yellow] "
+            "Install one of: pydantic, fastapi, sqlalchemy, django, numpy, pandas — "
+            "or pass --target explicitly."
+        )
         raise typer.Exit(code=1)
+
+    accepted: list[str] = []
+    for _dist_name, requirement in suggestions:
+        if non_interactive:
+            accepted.append(requirement)
+            console.print(f"  [green]+[/green] {requirement}")
+            continue
+        if typer.confirm(f"Add target '{requirement}'?", default=True):
+            accepted.append(requirement)
+
+    if not accepted:
+        console.print("[yellow]No targets selected; nothing to write.[/yellow]")
+        raise typer.Exit(code=1)
+
+    # Emit a single 'target' if there's one accepted entry, else a TOML list.
+    if len(accepted) == 1:
+        body = f'target = "{accepted[0]}"\n'
+    else:
+        joined = ",\n  ".join(f'"{t}"' for t in accepted)
+        body = f"target = [\n  {joined}\n]\n"
+
+    config_path.write_text(body, encoding="utf-8")
+    console.print(f"[green]Wrote[/green] {config_path}")
+
+
+cache_app = typer.Typer(help="Manage the on-disk griffe cache.")
+app.add_typer(cache_app, name="cache")
+
+
+@cache_app.command("clear")
+def cache_clear() -> None:
+    """Remove every cached griffe snapshot from disk."""
+    from pycomprepair.discovery.cache import cache_dir, clear_cache
+
+    removed = clear_cache()
+    console.print(f"Removed {removed} cached snapshot(s) from {cache_dir()}.")
+
+
+@cache_app.command("path")
+def cache_path_cmd() -> None:
+    """Print the directory where cached snapshots are stored."""
+    from pycomprepair.discovery.cache import cache_dir
+
+    console.print(str(cache_dir()))
 
 
 @app.command()
@@ -382,6 +614,18 @@ def _print_diff(result: RepairResult) -> None:
         tofile=f"b/{result.file}",
     )
     console.print(f"\n[bold]{result.file}[/bold]")
+    sys.stdout.writelines(diff)
+
+
+def _print_fix_diff(file: Path, original: str, updated: str) -> None:
+    """Render the unified diff produced by ``discover --fix``."""
+    diff = difflib.unified_diff(
+        original.splitlines(keepends=True),
+        updated.splitlines(keepends=True),
+        fromfile=f"a/{file}",
+        tofile=f"b/{file}",
+    )
+    console.print(f"\n[bold]{file}[/bold]")
     sys.stdout.writelines(diff)
 
 

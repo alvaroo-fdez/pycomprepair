@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pycomprepair"
-version = "0.3.0"
+version = "1.0.0"
 description = "Semantic upgrade assistant and compatibility codemods for Python dependencies."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -53,10 +53,17 @@ dev = [
     "mypy>=1.10",
     "types-PyYAML",
     "build>=1.2",
+    "pygls>=1.3",
+    "lsprotocol>=2023.0",
+]
+lsp = [
+    "pygls>=1.3",
+    "lsprotocol>=2023.0",
 ]
 
 [project.scripts]
 pycomprepair = "pycomprepair.cli:app"
+pycomprepair-lsp = "pycomprepair.lsp:main"
 
 [project.urls]
 Homepage = "https://github.com/alvaroo-fdez/pycomprepair"
@@ -71,6 +78,7 @@ fastapi = "pycomprepair.plugins.fastapi_migration:plugin"
 sqlalchemy = "pycomprepair.plugins.sqlalchemy_v2:plugin"
 django = "pycomprepair.plugins.django_v5:plugin"
 numpy = "pycomprepair.plugins.numpy_v2:plugin"
+pandas = "pycomprepair.plugins.pandas_v2:plugin"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pycomprepair"]
@@ -97,6 +105,10 @@ warn_redundant_casts = true
 
 [[tool.mypy.overrides]]
 module = ["libcst.*", "griffe.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pygls.*", "lsprotocol.*", "tomli"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

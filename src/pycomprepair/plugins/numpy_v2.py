@@ -26,6 +26,7 @@ introduced by ``import numpy [as <alias>]``, so a hand-written local
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -147,7 +148,7 @@ class _NumPyScanVisitor(cst.CSTVisitor):
 
     def __init__(
         self,
-        positions: dict[cst.CSTNode, object],
+        positions: Mapping[cst.CSTNode, object],
         file: Path,
         aliases: set[str],
     ) -> None:
@@ -277,7 +278,7 @@ class _NumPyRenameTransformer(cst.CSTTransformer):
 # ---------------------------------------------------------------------------
 
 
-def _pos(positions: dict[cst.CSTNode, object], node: cst.CSTNode) -> tuple[int, int]:
+def _pos(positions: Mapping[cst.CSTNode, object], node: cst.CSTNode) -> tuple[int, int]:
     p = positions.get(node)
     if p is None:
         return (1, 0)

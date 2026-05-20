@@ -24,6 +24,7 @@ without changing the engine.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -82,7 +83,7 @@ class _SQLAlchemyPlugin:
 class _SQLAlchemyScanVisitor(cst.CSTVisitor):
     METADATA_DEPENDENCIES = (PositionProvider,)
 
-    def __init__(self, positions: dict[cst.CSTNode, object], file: Path) -> None:
+    def __init__(self, positions: Mapping[cst.CSTNode, object], file: Path) -> None:
         super().__init__()
         self._positions = positions
         self._file = file
@@ -295,7 +296,7 @@ def _dotted(node: cst.BaseExpression) -> str:
     return ""
 
 
-def _pos(positions: dict[cst.CSTNode, object], node: cst.CSTNode) -> tuple[int, int]:
+def _pos(positions: Mapping[cst.CSTNode, object], node: cst.CSTNode) -> tuple[int, int]:
     p = positions.get(node)
     if p is None:
         return (1, 0)

@@ -35,8 +35,9 @@ from pathlib import Path
 import libcst as cst
 from libcst.metadata import CodeRange, MetadataWrapper, PositionProvider
 
-from pycomprepair.core.issue import Issue, Severity
+from pycomprepair.core.issue import Fix, Issue, Severity
 from pycomprepair.discovery.api_index import APIIndex
+from pycomprepair.discovery.known_fixes import KNOWN_FIXES
 
 DSC002 = "DSC002"
 """Attribute access targets a symbol that no longer exists in the installed package."""
@@ -217,6 +218,16 @@ class _AttrVisitor(cst.CSTVisitor):
             next_path = f"{current_path}.{attr}"
             if not index.has(next_path):
                 line, col = self._pos(node)
+                known = KNOWN_FIXES.get(next_path)
+                fix = (
+                    Fix(
+                        description=known.description,
+                        confidence=known.confidence,
+                        safe=known.safe,
+                    )
+                    if known is not None
+                    else None
+                )
                 self.issues.append(
                     Issue(
                         plugin="discover",
@@ -230,6 +241,7 @@ class _AttrVisitor(cst.CSTVisitor):
                         line=line,
                         column=col,
                         severity=Severity.ERROR,
+                        fix=fix,
                         context={"package": index.package, "symbol": next_path},
                     )
                 )
