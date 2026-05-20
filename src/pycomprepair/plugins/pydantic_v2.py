@@ -546,10 +546,9 @@ def _targets_version_ge(req: Requirement, version: str) -> bool:
     if target in spec:
         return True
     # Fall-back: any specifier whose lower bound is >= target.
-    for s in spec:
-        if s.operator in (">=", "==", "~=") and Version(s.version) >= target:
-            return True
-    return False
+    return any(
+        s.operator in (">=", "==", "~=") and Version(s.version) >= target for s in spec
+    )
 
 
 # Public plugin instance referenced from the entry point.

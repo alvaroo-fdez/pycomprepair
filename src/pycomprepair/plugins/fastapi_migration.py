@@ -114,10 +114,9 @@ def _targets_version_ge(req: Requirement, version: str) -> bool:
     target = Version(version)
     if target in spec:
         return True
-    for s in spec:
-        if s.operator in (">=", "==", "~=") and Version(s.version) >= target:
-            return True
-    return False
+    return any(
+        s.operator in (">=", "==", "~=") and Version(s.version) >= target for s in spec
+    )
 
 
 plugin = _FastAPIPlugin()
