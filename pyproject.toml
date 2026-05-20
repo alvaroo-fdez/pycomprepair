@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pycomprepair"
-version = "0.2.0"
+version = "0.3.0"
 description = "Semantic upgrade assistant and compatibility codemods for Python dependencies."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -70,6 +70,7 @@ pydantic = "pycomprepair.plugins.pydantic_v2:plugin"
 fastapi = "pycomprepair.plugins.fastapi_migration:plugin"
 sqlalchemy = "pycomprepair.plugins.sqlalchemy_v2:plugin"
 django = "pycomprepair.plugins.django_v5:plugin"
+numpy = "pycomprepair.plugins.numpy_v2:plugin"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pycomprepair"]

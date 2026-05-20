@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-20
+
+### Added
+
+- **NumPy 1.x -> 2.x plugin** (`pycomprepair.plugins.numpy_v2`). Covers
+  the mechanical removals in NumPy 2.0:
+  - `NPY001` — scalar aliases `np.float`, `np.int`, `np.bool`,
+    `np.complex`, `np.object`, `np.long`, `np.unicode`. Rewritten to the
+    equivalent Python builtin (`np.float` -> `float`, ...).
+  - `NPY002` — constant aliases `np.NaN`, `np.NAN`, `np.Inf`, `np.PINF`,
+    `np.Infinity`, `np.infty` -> `np.nan` / `np.inf`.
+  - `NPY003` — function renames `np.product` -> `np.prod`,
+    `np.cumproduct` -> `np.cumprod`, `np.alltrue` -> `np.all`,
+    `np.sometrue` -> `np.any`, `np.round_` -> `np.round`.
+
+  All three codes are conservative: they only fire on attribute access
+  through a name bound by `import numpy [as ...]`, so a local
+  `np.float` (with `np` shadowed by something else) is left alone.
+
+### Changed
+
+- Built-in plugin registry now includes `numpy` next to `pydantic`,
+  `fastapi`, `sqlalchemy` and `django`.
+
 ## [0.2.0] — 2026-05-19
 
 Major upgrade of the discovery layer plus first-class SARIF output and a

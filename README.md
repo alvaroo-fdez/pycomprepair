@@ -19,6 +19,7 @@ A diferencia de herramientas como `pyupgrade` (solo sintaxis del lenguaje) o `bu
 - **Plugin FastAPI**: deprecated `on_event` → `lifespan`, `Depends` con `use_cache` deprecated, etc.
 - **Plugin SQLAlchemy 2.0**: `from sqlalchemy.ext.declarative import declarative_base` → `sqlalchemy.orm`, `session.query(M).get(pk)` → `session.get(M, pk)`, avisos sobre `declarative_base()` y `Query.update/delete`.
 - **Plugin Django 5.0**: `smart_text`/`force_text` → `smart_str`/`force_str`, `ugettext*` → `gettext*`, aviso sobre `django.utils.timezone.utc` y `Meta.index_together`.
+- **Plugin NumPy 2.0**: alias escalares eliminados (`np.float` → `float`, `np.int` → `int`, …), constantes (`np.NaN` → `np.nan`, `np.Inf` → `np.inf`) y renombrados de funciones (`np.product` → `np.prod`, `np.alltrue` → `np.all`, `np.round_` → `np.round`, …).
 - **CLI** (`pycomprepair`) con `scan`, `repair`, `report`.
 
 ## Instalación
